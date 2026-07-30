@@ -1,0 +1,17 @@
+services:
+  quicklearn:
+    build: .
+    image: quicklearn:local
+    ports:
+      - "8080:8080"
+    volumes:
+      # Everything the app owns — database, media, model cache, encryption key.
+      - quicklearn-data:/data
+    restart: unless-stopped
+    # Provider keys are normally entered in Settings and stored encrypted in the database.
+    # Uncomment to supply one via the environment instead; it then takes precedence.
+    # environment:
+    #   QUICKLEARN_GROQ_API_KEY: ${QUICKLEARN_GROQ_API_KEY}
+
+volumes:
+  quicklearn-data:

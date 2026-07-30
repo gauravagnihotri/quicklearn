@@ -1,0 +1,119 @@
+[project]
+name = "quicklearn"
+version = "1.0.0"
+description = "Self-hosted, open-source AI study engine. Your data never leaves your machine."
+# No `readme` field: the project README lives at the repository root, one level above this
+# directory, and a build backend cannot pull files from outside the project root.
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    # web
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "websockets>=12",
+    # data
+    "sqlalchemy>=2.0.30",
+    "alembic>=1.13",
+    "pydantic>=2.7",
+    # infra
+    "httpx>=0.27",
+    "jinja2>=3.1",
+    "cryptography>=42",
+    "tenacity>=8.3",
+    "aiofiles>=23",
+    "numpy>=1.26",
+    # extraction
+    "pymupdf>=1.24",
+    "python-docx>=1.1",
+    "python-pptx>=0.6",
+    "trafilatura>=1.10",
+    "yt-dlp>=2024.5.27",
+    # study
+    "fsrs>=6,<7",
+    "genanki>=0.13",
+    # rag / tokens
+    "sqlite-vec>=0.1.6",
+    "fastembed>=0.3",
+    "tiktoken>=0.7",
+]
+
+[project.optional-dependencies]
+fsrs-optimizer = ["fsrs[optimizer]>=6,<7"]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    # mypy and ruff are pinned to a minor: both add checks in every release, so an unbounded
+    # range means a contributor's clean checkout can fail lint on a day no code changed.
+    "mypy>=1.18,<1.19",
+    "ruff>=0.16,<0.17",
+    "types-aiofiles",
+]
+
+[project.scripts]
+quicklearn = "quicklearn.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+# `quicklearn/static/` is the compiled SPA, copied in by `npm run build`. It is generated, so
+# it is git-ignored — and hatchling honours VCS ignores by default, which would silently drop
+# the UI from the wheel. Listing it as an artifact overrides that.
+artifacts = ["quicklearn/static/**"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["quicklearn"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# `extend-exclude`, not `exclude`: plain `exclude` replaces ruff's defaults, which is how you end
+# up linting everything inside `.venv/`.
+extend-exclude = ["quicklearn/db/migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "B008",
+    "RUF012",
+    # Comments and docstrings here use real typographic dashes. Flattening prose to ASCII to
+    # satisfy a linter is the wrong trade; these rules exist to catch homoglyphs in code, and
+    # code is unaffected by them.
+    "RUF002",
+    "RUF003",
+]
+
+[tool.mypy]
+# The package runs on 3.11+, but numpy's bundled stubs use `type` statements that mypy only
+# parses when targeting 3.12 — checking against 3.11 fails inside numpy before reaching our
+# code. Type-checking targets 3.12; the runtime floor stays at `requires-python`.
+python_version = "3.12"
+strict = true
+plugins = []
+exclude = ["quicklearn/db/migrations/"]
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+module = [
+    "fitz.*",
+    "docx.*",
+    "pptx.*",
+    "trafilatura.*",
+    "yt_dlp.*",
+    "genanki.*",
+    "sqlite_vec.*",
+    "fastembed.*",
+    "fsrs.*",
+    "tiktoken.*",
+    # Only present with the optional `fsrs-optimizer` extra.
+    "torch.*",
+]
+ignore_missing_imports = true

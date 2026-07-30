@@ -1,0 +1,28 @@
+# Keep the build context small and free of local state.
+.git/
+.gitignore
+
+# Personal data — must never enter an image layer.
+.quicklearn-data/
+backend/.tmp-*/
+*.db
+*.db-shm
+*.db-wal
+.secret
+.env
+
+# Environments and build output; the image builds its own.
+backend/.venv/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+**/__pycache__/
+**/*.pyc
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+backend/quicklearn/static/
+
+.vscode/
+.idea/
+.DS_Store

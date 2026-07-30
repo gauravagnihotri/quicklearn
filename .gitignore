@@ -1,0 +1,44 @@
+# --- User data -------------------------------------------------------------
+# The app writes its corpus, media and encryption key into a data directory.
+# None of it ever belongs in the repository.
+.quicklearn-data/
+*.db
+*.db-shm
+*.db-wal
+.secret
+
+# Scratch data dirs left behind by manual test runs
+backend/.tmp-*/
+
+# --- Secrets ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- Python ----------------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+backend/build/
+backend/dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node ------------------------------------------------------------------
+node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+npm-debug.log*
+
+# --- Build output ----------------------------------------------------------
+# The compiled SPA is copied here by `npm run build`; it is generated, not source.
+backend/quicklearn/static/
+
+# --- Editors / OS ----------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

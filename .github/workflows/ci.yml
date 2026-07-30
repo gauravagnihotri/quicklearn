@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor declared in pyproject (requires-python = ">=3.11") and a current release.
+        python-version: ["3.11", "3.12"]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # The suite generates its audio fixtures with ffmpeg rather than committing binaries;
+      # without it the audio tests skip rather than fail, so install it to get real coverage.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      # Lint and type-check once rather than per interpreter: both are static and their result
+      # does not depend on which Python runs them.
+      - name: Lint
+        if: matrix.python-version == '3.12'
+        run: ruff check . && ruff format --check .
+
+      # Non-blocking: `strict = true` currently reports ~41 pre-existing errors. The check is
+      # kept visible so the number can be driven down, but it does not gate a merge yet.
+      # Remove `continue-on-error` once it reaches zero.
+      - name: Types
+        if: matrix.python-version == '3.12'
+        continue-on-error: true
+        run: mypy quicklearn
+
+      # Fully offline against the built-in `mock` provider — no API keys required.
+      - name: Tests
+        run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
