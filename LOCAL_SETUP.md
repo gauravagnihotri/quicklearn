@@ -23,6 +23,7 @@ so upstream defaults are unchanged.
 | `QUICKLEARN_USE_MODEL_SAMPLING` stops sending `temperature` | `providers/llm/openai_compat.py` | Low temperatures made the model think ~50% longer |
 | Note blocks require `type` and `text` in the JSON schema | `pipeline/schemas.py` | vLLM emits properties in schema order; optional `text` got skipped |
 | Empty headings fall back to the section title | `pipeline/generate/notes.py` | Models omit heading text, so headings were dropped |
+| Outer `$`/`$$` stripped from maths blocks | `pipeline/generate/notes.py` | KaTeX rejects delimiters inside a block that is already maths |
 | Cards with `{{c1::…}}` become cloze; `{{c1:` is repaired | `pipeline/schemas.py` | Models omit `type`, so cloze cards showed the answer on the front |
 
 ## Updating

@@ -213,6 +213,10 @@ async def expand_section(
             # Local patch: models often omit the heading text because the section title was in
             # the prompt; without this the heading is dropped and the note loses its structure.
             block.text = section.title
+        if block.type == "latex":
+            # Local patch: models wrap display maths in $...$ or $$...$$, which KaTeX rejects
+            # inside a block that is already maths.
+            block.text = block.text.strip().removeprefix("$$").removesuffix("$$").strip("$").strip()
         if block.type == "table" and not block.rows:
             continue
         if not block.text.strip() and not block.items and not block.rows:
