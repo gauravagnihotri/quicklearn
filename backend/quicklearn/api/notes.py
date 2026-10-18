@@ -14,12 +14,12 @@ from sqlalchemy import select
 
 from .. import prompts
 from ..config import get_config
-from ..db.enums import JobStatus
+from ..db.enums import JobStatus, JobType
 from ..db.models import Job, Note, NoteBlock, Segment, Source
 from ..db.session import session_scope
 from ..errors import ConflictError, NotFoundError, ValidationError
 from ..pipeline import tiptap
-from ..pipeline.generate.notes import reindex_note
+from ..pipeline.generate.notes import SIMPLIFIED_STYLE, reindex_note
 from ..providers import gateway
 from ..providers.base import text_message
 from .common import note_dict, run_db, segment_dict
@@ -110,10 +110,18 @@ def _guard_doc_write(
         # callouts after the fix had shipped.
         log.warning("refused save of note %s from stale UI build %r", note.id, client_build)
         raise ConflictError("QuickLearn was updated since this page loaded. Reload the page.")
+    # Only jobs that rewrite this note lock it: the simplified note generating must not stop
+    # edits to the standard one.
+    writers = [JobType.INGEST]
+    writers.append(
+        JobType.GENERATE_SIMPLIFIED_NOTES
+        if note.style == SIMPLIFIED_STYLE
+        else JobType.GENERATE_NOTES
+    )
     busy = session.execute(
         select(Job.id).where(
             Job.source_id == note.source_id,
-            Job.parent_id.is_(None),
+            Job.type.in_(writers),
             Job.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
         )
     ).first()

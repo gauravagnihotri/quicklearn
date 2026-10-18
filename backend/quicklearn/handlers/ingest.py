@@ -235,6 +235,13 @@ async def handle_ingest(ctx: JobContext) -> None:
     ctx.progress(100, "Ready")
     emit("source.updated", source_id=source_id, status="ready")
 
+    # Local patch: the simplified note is its own job, queued once everything else is ready so
+    # it never delays the standard notes, cards or quiz.
+    with session_scope() as session:
+        has_note = notes_gen.note_for(session, source_id) is not None
+    if has_note:
+        jq.enqueue(JobType.GENERATE_SIMPLIFIED_NOTES, source_id=source_id, dedupe_key="simplified")
+
 
 def _mark_remaining_skipped(children: dict[JobType, int], failed_at: JobType) -> None:
     """Mark downstream children as skipped once a fatal stage fails.
@@ -315,6 +322,20 @@ async def handle_generate_notes(ctx: JobContext) -> None:
         job_id=ctx.job_id,
         on_progress=lambda done, total: ctx.sub_progress(
             10, 85, done, total, f"Writing section {done} of {total}"
+        ),
+    )
+    emit("source.updated", source_id=source_id, status="ready")
+
+
+@register(JobType.GENERATE_SIMPLIFIED_NOTES)
+async def handle_generate_simplified_notes(ctx: JobContext) -> None:
+    source_id = _require_source(ctx)
+    await notes_gen.generate_notes(
+        source_id,
+        style=notes_gen.SIMPLIFIED_STYLE,
+        job_id=ctx.job_id,
+        on_progress=lambda done, total: ctx.sub_progress(
+            10, 85, done, total, f"Writing simplified section {done} of {total}"
         ),
     )
     emit("source.updated", source_id=source_id, status="ready")

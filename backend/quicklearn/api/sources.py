@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 
 from ..db.enums import JobType, SourceKind, SourceOrigin, SourceStatus
-from ..db.models import Card, Concept, Note, QuizItem, Segment, Source, Tag, Transcript
+from ..db.models import Card, Concept, QuizItem, Segment, Source, Tag, Transcript
 from ..db.search import delete_source as search_delete_source
 from ..db.session import raw_sqlite, session_scope
 from ..errors import NotFoundError, ValidationError
@@ -21,6 +21,7 @@ from ..handlers.ingest import enqueue_ingest
 from ..jobs import queue as jq
 from ..pipeline import acquire
 from ..pipeline.extract.web import is_youtube
+from ..pipeline.generate.notes import note_for
 from ..rag import index as rag_index
 from .common import (
     concept_dict,
@@ -60,7 +61,8 @@ class MarkerRequest(BaseModel):
 
 
 class RegenerateRequest(BaseModel):
-    target: Literal["notes", "concepts", "cards", "quiz", "all"] = "notes"
+    #: ``simplified`` (local patch) rewrites only the ADHD-friendly note.
+    target: Literal["notes", "simplified", "concepts", "cards", "quiz", "all"] = "notes"
     style: str = ""
     count: int = 20
     max_cards: int | None = None
@@ -311,11 +313,8 @@ def get_source(source_id: int) -> dict[str, Any]:
         if source is None:
             raise NotFoundError(f"Source {source_id} not found.")
 
-        note = (
-            session.execute(select(Note).where(Note.source_id == source_id).order_by(Note.id))
-            .scalars()
-            .first()
-        )
+        note = note_for(session, source_id)
+        simplified = note_for(session, source_id, simplified=True)
         transcript = session.execute(
             select(Transcript).where(Transcript.source_id == source_id)
         ).scalar_one_or_none()
@@ -348,6 +347,7 @@ def get_source(source_id: int) -> dict[str, Any]:
         return {
             "source": source_dict(source),
             "note": note_dict(note) if note else None,
+            "simplified_note": note_dict(simplified) if simplified else None,
             "transcript": {
                 "language": transcript.language,
                 "provider": transcript.provider,
@@ -494,16 +494,12 @@ async def regenerate(source_id: int, payload: RegenerateRequest) -> dict[str, An
 
     def existing_note_is_dirty() -> bool:
         with session_scope() as session:
-            note = (
-                session.execute(select(Note).where(Note.source_id == source_id).order_by(Note.id))
-                .scalars()
-                .first()
-            )
-            return bool(note and note.is_dirty)
+            notes = [note_for(session, source_id)] if payload.target in {"notes", "all"} else []
+            if payload.target in {"simplified", "all"}:
+                notes.append(note_for(session, source_id, simplified=True))
+            return any(note is not None and note.is_dirty for note in notes)
 
-    was_edited = (
-        await run_db(existing_note_is_dirty) if payload.target in {"notes", "all"} else False
-    )
+    was_edited = await run_db(existing_note_is_dirty)
 
     job_ids: list[int] = []
     if payload.target in {"notes", "all"}:
@@ -514,6 +510,15 @@ async def regenerate(source_id: int, payload: RegenerateRequest) -> dict[str, An
                 payload={"style": payload.style},
                 source_id=source_id,
                 dedupe_key="regen",
+            )
+        )
+    if payload.target in {"simplified", "all"}:
+        job_ids.append(
+            await run_db(
+                jq.enqueue,
+                JobType.GENERATE_SIMPLIFIED_NOTES,
+                source_id=source_id,
+                dedupe_key="simplified",
             )
         )
     if payload.target in {"concepts", "all"}:

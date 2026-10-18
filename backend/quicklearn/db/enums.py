@@ -55,6 +55,8 @@ class JobType(StrEnum):
     SEGMENT = "segment"
     FILTER = "filter"
     GENERATE_NOTES = "generate_notes"
+    #: Local patch: the ADHD-friendly "Simplified" note, written after ingest finishes.
+    GENERATE_SIMPLIFIED_NOTES = "generate_simplified_notes"
     GENERATE_CONCEPTS = "generate_concepts"
     GENERATE_CARDS = "generate_cards"
     GENERATE_QUIZ = "generate_quiz"

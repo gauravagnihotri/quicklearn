@@ -19,7 +19,7 @@ from sqlalchemy import select
 from ... import prompts
 from ...config import get_config
 from ...db.enums import PodcastStatus
-from ...db.models import Note, Podcast, Source
+from ...db.models import Podcast, Source
 from ...db.session import session_scope
 from ...errors import PipelineError
 from ...jobs.events import emit
@@ -28,6 +28,7 @@ from ...providers.base import text_message
 from ...settings import get_settings
 from .. import media, tiptap
 from ..schemas import PodcastScript
+from .notes import note_for
 
 log = logging.getLogger(__name__)
 
@@ -55,11 +56,7 @@ def _gather_content(source_ids: list[int]) -> tuple[str, str]:
             if source is None:
                 continue
             titles.append(source.title)
-            note = (
-                session.execute(select(Note).where(Note.source_id == source_id).order_by(Note.id))
-                .scalars()
-                .first()
-            )
+            note = note_for(session, source_id)
 
             if note is not None and note.doc:
                 chunks.append(f"# {source.title}\n\n{tiptap.doc_to_plaintext(note.doc)}")

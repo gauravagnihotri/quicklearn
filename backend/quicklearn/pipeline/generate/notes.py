@@ -55,6 +55,26 @@ def _list_items(block: NoteBlockOut) -> list[str]:
     return [item for item in items if item]
 
 
+#: Local patch: style of the second, ADHD-friendly note each source gets (prompts/_adhd.md).
+SIMPLIFIED_STYLE = "adhd"
+
+
+def note_for(session: Any, source_id: int, *, simplified: bool = False) -> Note | None:
+    """The source's standard note, or its simplified one.
+
+    Upstream assumed one note per source and took the first; the simplified note is a second
+    row told apart by its style.
+    """
+    style_matches = Note.style == SIMPLIFIED_STYLE if simplified else Note.style != SIMPLIFIED_STYLE
+    return (
+        session.execute(
+            select(Note).where(Note.source_id == source_id, style_matches).order_by(Note.id)
+        )
+        .scalars()
+        .first()
+    )
+
+
 #: Fraction of the model's context window the outline pass may fill with transcript. The rest
 #: is instructions plus room for the response.
 CONTEXT_BUDGET = 0.45
@@ -361,11 +381,7 @@ def persist_note(
     outline = tiptap.outline_from_blocks(blocks)
 
     with session_scope() as session:
-        existing = (
-            session.execute(select(Note).where(Note.source_id == source_id).order_by(Note.id))
-            .scalars()
-            .first()
-        )
+        existing = note_for(session, source_id, simplified=style == SIMPLIFIED_STYLE)
 
         if existing is None:
             note = Note(source_id=source_id, title=title, doc=doc, outline=outline, style=style)

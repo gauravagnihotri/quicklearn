@@ -67,7 +67,8 @@ export const kindLabel = (kind: string) => KIND_LABEL[kind] ?? kind
 const STAGE_LABEL: Record<string, string> = {
   ingest: 'Processing', normalize: 'Preparing media', transcribe: 'Extracting content',
   extract: 'Extracting content', segment: 'Segmenting', filter: 'Assessing relevance',
-  generate_notes: 'Writing notes', generate_concepts: 'Extracting concepts',
+  generate_notes: 'Writing notes', generate_simplified_notes: 'Writing simplified notes',
+  generate_concepts: 'Extracting concepts',
   generate_cards: 'Creating flashcards', generate_quiz: 'Writing quiz questions',
   generate_podcast: 'Generating podcast', index: 'Indexing',
 }

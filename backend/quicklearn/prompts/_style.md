@@ -17,6 +17,8 @@ collapse it into ordinary prose.
 statements, conditions and edge cases. Use `callout` blocks with variant `key` for anything the
 lecturer signalled as assessable. Include worked steps for any procedure. Omit anecdote and
 motivation unless it is a memory aid.
+{% elif style == "adhd" %}
+{% include "_adhd.md" %}
 {% else %}
 **Style: Detailed.** Explanatory prose with worked examples. Preserve the reasoning, not just
 the conclusion — a reader who missed the lecture should be able to follow the argument. Use

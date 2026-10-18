@@ -91,7 +91,7 @@ export const api = {
     post<{ source_id: number; job_id: number }>('/sources/text', { title, content, folder_id }),
   regenerate: (
     id: number,
-    body: { target: 'notes' | 'concepts' | 'cards' | 'quiz' | 'all'; style?: string; count?: number },
+    body: { target: 'notes' | 'simplified' | 'concepts' | 'cards' | 'quiz' | 'all'; style?: string; count?: number },
   ) => post<{ job_ids: number[]; note_was_edited: boolean }>(`/sources/${id}/regenerate`, body),
   reprocess: (id: number) => post<{ job_id: number }>(`/sources/${id}/reprocess`),
   mediaUrl: (id: number) => `${BASE}/sources/${id}/media`,

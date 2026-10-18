@@ -819,3 +819,54 @@ async def test_job_tree_is_reported(client: httpx.AsyncClient) -> None:
     assert detail["status"] == "succeeded"
     assert detail["children"], "the UI needs a progress tree, not one opaque job"
     assert all(child["parent_id"] == ingest["id"] for child in detail["children"])
+
+
+# --------------------------------------------------------------------------- simplified notes
+
+
+async def test_simplified_notes_are_a_second_note(client: httpx.AsyncClient) -> None:
+    """Local patch: ingest also writes an ADHD-friendly note beside the standard one."""
+    source_id, note_id, _ = await _ready_note(client)
+    data = (await client.get(f"/sources/{source_id}")).json()
+
+    simplified = data["simplified_note"]
+    assert simplified is not None
+    assert simplified["id"] != note_id
+    assert simplified["style"] == "adhd"
+    assert simplified["doc"]["content"]
+    assert data["note"]["id"] == note_id and data["note"]["style"] != "adhd"
+
+
+async def test_regenerating_one_note_leaves_the_other(client: httpx.AsyncClient) -> None:
+    source_id, note_id, _ = await _ready_note(client)
+    simplified_id = (await client.get(f"/sources/{source_id}")).json()["simplified_note"]["id"]
+
+    response = await client.post(f"/sources/{source_id}/regenerate", json={"target": "simplified"})
+    assert response.status_code == 200
+    # Only the note being rewritten is locked.
+    edit = {"doc": _doc(_callout("mine"))}
+    assert (await client.patch(f"/notes/{note_id}", json=edit)).status_code == 200
+    assert (await client.patch(f"/notes/{simplified_id}", json=edit)).status_code == 409
+
+    await drain()
+    data = (await client.get(f"/sources/{source_id}")).json()
+    assert data["note"]["id"] == note_id
+    assert data["simplified_note"]["id"] == simplified_id
+    assert data["simplified_note"]["version"] == 2
+
+
+def test_simplified_prompt_carries_the_adhd_rules() -> None:
+    from quicklearn import prompts
+
+    rendered = prompts.render(
+        "note_section",
+        section={"title": "Arrays", "thesis": "Contiguous memory"},
+        outline=[{"title": "Arrays"}],
+        segments=[{"id": 1, "text": "An array is contiguous.", "timestamp": "00:01"}],
+        style="adhd",
+        heading_level=2,
+    )
+    assert "The reader has ADHD" in rendered
+    assert "Working memory is small" in rendered
+    assert "Cap lists at 5 items" in rendered
+    assert "simplif" not in rendered.lower()

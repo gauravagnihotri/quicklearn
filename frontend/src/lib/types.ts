@@ -82,6 +82,8 @@ export interface TipTapNode {
 export interface SourceDetail {
   source: Source
   note: Note | null
+  /** Local patch: the ADHD-friendly second note, written after ingest. */
+  simplified_note: Note | null
   transcript: { language: string | null; provider: string | null; model: string | null } | null
   counts: { segments: number; concepts: number; cards: number; quiz_items: number }
   jobs: Job[]

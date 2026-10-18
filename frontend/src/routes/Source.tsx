@@ -18,7 +18,7 @@ import { TranscriptPanel } from '../components/player/TranscriptPanel'
 import {
   Badge, Button, Card, CardBody, Dialog, DialogContent, DialogDescription, DialogTitle,
   EmptyState, Field, Input, Progress, Select, SelectContent, SelectItem, SelectTrigger,
-  SelectValue, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip,
+  SelectValue, Skeleton, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip,
 } from '../components/ui'
 import { StatusBadge } from './Dashboard'
 
@@ -40,6 +40,23 @@ export function SourcePage() {
   const [highlightIds, setHighlightIds] = useState<number[]>([])
   const [scrollTo, setScrollTo] = useState<number | null>(search.seg ?? null)
   const [regenOpen, setRegenOpen] = useState(false)
+  // Local patch: which note the Notes tab shows. Remembered per browser; storage can be
+  // unavailable (private windows), so it falls back to the standard notes.
+  const [simplifiedView, setSimplifiedView] = useState(() => {
+    try {
+      return localStorage.getItem('ql-notes-simplified') === '1'
+    } catch {
+      return false
+    }
+  })
+  const showSimplified = (on: boolean) => {
+    setSimplifiedView(on)
+    try {
+      localStorage.setItem('ql-notes-simplified', on ? '1' : '0')
+    } catch {
+      /* storage blocked — the toggle still works for this visit */
+    }
+  }
   const [renaming, setRenaming] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
 
@@ -80,7 +97,7 @@ export function SourcePage() {
   }, [search.tab])
 
   const regenerate = useMutation({
-    mutationFn: (body: { target: 'notes' | 'concepts' | 'cards' | 'quiz' | 'all'; style?: string }) =>
+    mutationFn: (body: { target: 'notes' | 'simplified' | 'concepts' | 'cards' | 'quiz' | 'all'; style?: string }) =>
       api.regenerate(id, body),
     onSuccess: () => {
       queryClient.invalidateQueries()
@@ -118,6 +135,19 @@ export function SourcePage() {
   }
 
   const { source, note, counts } = data
+  // A note is locked only while a job that rewrites it runs (the server enforces the same).
+  const writing = (types: string[]) =>
+    Object.values(jobs).some(
+      (job) =>
+        job.source_id === id &&
+        types.includes(job.type) &&
+        (job.status === 'running' || job.status === 'queued'),
+    )
+  const shownNote = simplifiedView ? data.simplified_note : note
+  const shownKey = simplifiedView ? 'simplified_note' : 'note'
+  const writingShown = writing(
+    simplifiedView ? ['ingest', 'generate_simplified_notes'] : ['ingest', 'generate_notes'],
+  )
   const segments = segmentData?.segments ?? []
   const isMedia = source.kind === 'audio' || source.kind === 'video' || source.kind === 'youtube'
   const printMode = search.print === true
@@ -318,37 +348,46 @@ export function SourcePage() {
         </TabsList>
 
         <TabsContent value="notes">
-          {note ? (
+          {note && (
+            <label className="mb-3 flex w-fit cursor-pointer items-center gap-2 text-sm">
+              <Switch checked={simplifiedView} onCheckedChange={showSimplified} />
+              Simplified
+              <span className="text-xs text-[var(--text-muted)]">ADHD-friendly layout</span>
+            </label>
+          )}
+          {shownNote ? (
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
               <Card>
                 <CardBody className="px-5 py-4 sm:px-8 sm:py-6">
-                  {activeJob && (
+                  {writingShown && (
                     <p className="mb-3 rounded-md bg-[var(--bg-sunken)] px-3 py-2 text-xs text-[var(--text-muted)]">
                       Still processing — editing unlocks when it finishes.
                     </p>
                   )}
                   <NoteEditor
-                    noteId={note.id}
-                    doc={note.doc}
-                    version={note.version}
-                    editable={!activeJob}
+                    key={shownNote.id}
+                    noteId={shownNote.id}
+                    doc={shownNote.doc}
+                    version={shownNote.version}
+                    editable={!writingShown}
                     onConflict={() => queryClient.invalidateQueries({ queryKey: ['source', id] })}
                     onAnchorClick={jumpToSource}
-                    onDirty={() => queryClient.setQueryData(['source', id], (old: typeof data) =>
-                      old?.note ? { ...old, note: { ...old.note, is_dirty: true } } : old,
-                    )}
+                    onDirty={() => queryClient.setQueryData(['source', id], (old: typeof data) => {
+                      const current = old?.[shownKey]
+                      return old && current ? { ...old, [shownKey]: { ...current, is_dirty: true } } : old
+                    })}
                   />
                 </CardBody>
               </Card>
 
-              {note.outline.length > 0 && (
+              {shownNote.outline.length > 0 && (
                 <aside className="hidden lg:block">
                   <div className="sticky top-4">
                     <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                       On this page
                     </p>
                     <nav className="space-y-0.5">
-                      {note.outline.map((item, index) => (
+                      {shownNote.outline.map((item, index) => (
                         <a
                           key={index}
                           href={`#heading-${item.index}`}
@@ -371,6 +410,25 @@ export function SourcePage() {
                 </aside>
               )}
             </div>
+          ) : simplifiedView && note ? (
+            <Card>
+              <EmptyState
+                icon={FileText}
+                title={
+                  writing(['generate_simplified_notes'])
+                    ? 'Simplified notes are being written…'
+                    : 'No simplified notes yet'
+                }
+                description="An ADHD-friendly version of these notes, written after everything else is ready."
+                action={
+                  !writing(['generate_simplified_notes']) && (
+                    <Button variant="primary" onClick={() => regenerate.mutate({ target: 'simplified' })}>
+                      Generate simplified notes
+                    </Button>
+                  )
+                }
+              />
+            </Card>
           ) : (
             <Card>
               <EmptyState
@@ -478,7 +536,7 @@ function RegenerateDialog({
   onOpenChange: (open: boolean) => void
   noteWasEdited: boolean
   pending: boolean
-  onConfirm: (target: 'notes' | 'concepts' | 'cards' | 'quiz' | 'all', style: string) => void
+  onConfirm: (target: 'notes' | 'simplified' | 'concepts' | 'cards' | 'quiz' | 'all', style: string) => void
 }) {
   const [style, setStyle] = useState<string>('detailed')
   return (
@@ -517,6 +575,9 @@ function RegenerateDialog({
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
           <Button variant="primary" loading={pending} onClick={() => onConfirm('notes', style)}>
             <FileText className="h-4 w-4" /> Notes only
+          </Button>
+          <Button onClick={() => onConfirm('simplified', style)} disabled={pending}>
+            <FileText className="h-4 w-4" /> Simplified notes
           </Button>
           <Button onClick={() => onConfirm('concepts', style)} disabled={pending}>
             <Sparkles className="h-4 w-4" /> Concepts
