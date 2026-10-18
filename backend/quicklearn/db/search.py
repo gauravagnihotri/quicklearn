@@ -123,7 +123,7 @@ def delete_source(conn: sqlite3.Connection, source_id: int) -> None:
     conn.execute("DELETE FROM search_docs WHERE source_id = ?", (source_id,))
 
 
-def escape_query(raw: str) -> str:
+def escape_query(raw: str, *, any_terms: bool = False) -> str:
     """Turn user input into a safe FTS5 MATCH expression.
 
     FTS5 has its own query syntax, and characters like ``"``, ``*``, ``:``, ``^``, ``(``, ``-``
@@ -131,6 +131,11 @@ def escape_query(raw: str) -> str:
     would otherwise get a bare ``fts5: syntax error`` instead of results. Each run of
     alphanumerics becomes one quoted token, and a trailing ``*`` gives prefix matching on the
     final word so search feels responsive as you type.
+
+    Local patch: ``any_terms`` ORs the tokens instead, for chat retrieval. A typed question
+    ("what are static vs dynamic arrays") almost never has every word in one passage, so the
+    implicit AND matched nothing and chat silently ran on vector search alone. BM25 already
+    ranks passages matching more, and rarer, words first.
     """
     tokens = []
     current: list[str] = []
@@ -146,6 +151,8 @@ def escape_query(raw: str) -> str:
 
     if not tokens:
         return ""
+    if any_terms:
+        return " OR ".join(f'"{t}"' for t in tokens)
     quoted = [f'"{t}"' for t in tokens[:-1]]
     # Prefix-match the last token only if it looks like a word being typed.
     last = tokens[-1]
@@ -160,8 +167,9 @@ def search(
     kinds: Sequence[SearchKind] | None = None,
     source_ids: Sequence[int] | None = None,
     limit: int = 50,
+    any_terms: bool = False,
 ) -> list[SearchHit]:
-    match_expr = escape_query(query)
+    match_expr = escape_query(query, any_terms=any_terms)
     if not match_expr:
         return []
 

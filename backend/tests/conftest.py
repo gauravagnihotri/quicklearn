@@ -22,6 +22,19 @@ from quicklearn.db import session as session_module
 from quicklearn.db.bootstrap import init_database
 
 
+@pytest.fixture(autouse=True)
+def _no_served_build(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Local patch: a frontend built into the source tree must not make note saves 409.
+
+    ``npm run build`` copies ``build-id.txt`` into ``quicklearn/static``, and the stale-tab
+    guard then refuses every save that lacks the matching header. Tests that exercise the
+    guard set their own build.
+    """
+    from quicklearn.api import notes
+
+    monkeypatch.setattr(notes, "_served_build", lambda: None)
+
+
 @pytest.fixture
 def data_dir() -> Iterator[Path]:
     path = Path(tempfile.mkdtemp(prefix="quicklearn-test-"))

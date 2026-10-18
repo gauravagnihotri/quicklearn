@@ -1,8 +1,8 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
-  BookOpen, Brain, LayoutDashboard, Menu, Mic, MessageSquare, Headphones,
-  Search, Settings as SettingsIcon, Zap, ListChecks,
+  BookOpen, Brain, LayoutDashboard, Loader2, Menu, Mic, MessageSquare, Headphones,
+  PanelLeftClose, PanelLeftOpen, Search, Settings as SettingsIcon, Zap, ListChecks,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
@@ -24,7 +24,14 @@ const NAV = [
 ]
 
 export function AppShell() {
-  const { sidebarOpen, setSidebarOpen, setPaletteOpen } = useUi()
+  const { sidebarOpen, setSidebarOpen, setPaletteOpen, navCollapsed, setNavCollapsed } = useUi()
+  // The rail only applies on desktop; the mobile drawer always shows labels.
+  const onRail = navCollapsed ? 'lg:hidden' : ''
+  const busyJobs = useJobs(
+    (state) =>
+      Object.values(state.jobs).filter((job) => job.status === 'running' || job.status === 'queued')
+        .length,
+  )
   const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   // One socket for the whole app; see lib/ws.ts for why it is not a hook.
@@ -72,67 +79,111 @@ export function AppShell() {
           'fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-[var(--border)]',
           'bg-[var(--bg-raised)] transition-transform lg:static lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          navCollapsed && 'lg:w-14',
         )}
       >
-        <div className="flex h-14 items-center gap-2 px-4">
-          <Link to="/" className="flex items-center gap-2 font-semibold tracking-tight">
+        <div className={cn('flex h-14 items-center gap-2 px-4', navCollapsed && 'lg:justify-center lg:px-0')}>
+          <Link to="/" className={cn('flex flex-1 items-center gap-2 font-semibold tracking-tight', onRail)}>
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-[var(--accent)] text-white">
               <Zap className="h-4 w-4" />
             </span>
             quicklearn
           </Link>
+          <Tooltip label={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="hidden lg:inline-flex"
+              aria-label={navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              onClick={() => setNavCollapsed(!navCollapsed)}
+            >
+              {navCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </Button>
+          </Tooltip>
         </div>
 
-        <div className="px-3 pb-2">
-          <button
-            type="button"
-            onClick={() => setPaletteOpen(true)}
-            className="flex w-full items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] px-2.5 py-1.5 text-[13px] text-[var(--text-muted)] transition hover:border-[var(--accent)]/40"
-          >
-            <Search className="h-3.5 w-3.5" />
-            <span className="flex-1 text-left">Search…</span>
-            <Kbd>{modKey}K</Kbd>
-          </button>
+        <div className={cn('px-3 pb-2', navCollapsed && 'lg:px-2')}>
+          <Tooltip label={navCollapsed ? `Search (${modKey}K)` : null} side="right">
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] px-2.5 py-1.5 text-[13px] text-[var(--text-muted)] transition hover:border-[var(--accent)]/40',
+                navCollapsed && 'lg:justify-center lg:px-0 lg:py-2',
+              )}
+            >
+              <Search className="h-3.5 w-3.5 shrink-0" />
+              <span className={cn('flex-1 text-left', onRail)}>Search…</span>
+              <span className={onRail}>
+                <Kbd>{modKey}K</Kbd>
+              </span>
+            </button>
+          </Tooltip>
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
+        <nav className={cn('flex-1 space-y-0.5 overflow-y-auto px-3 py-2', navCollapsed && 'lg:px-2')}>
           {NAV.map((item) => {
             const active = item.exact ? pathname === item.to : pathname.startsWith(item.to)
+            const due = item.badge === 'due' && dueTotal > 0
             return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={cn(
-                  'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors',
-                  active
-                    ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                    : 'text-[var(--text-muted)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]',
-                )}
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-                <span className="flex-1">{item.label}</span>
-                {item.badge === 'due' && dueTotal > 0 && (
-                  <Badge tone="accent">{dueTotal > 999 ? '999+' : dueTotal}</Badge>
-                )}
-              </Link>
+              <Tooltip key={item.to} label={navCollapsed ? item.label : null} side="right">
+                <Link
+                  to={item.to}
+                  className={cn(
+                    'relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors',
+                    navCollapsed && 'lg:justify-center lg:px-0',
+                    active
+                      ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                      : 'text-[var(--text-muted)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]',
+                  )}
+                >
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  <span className={cn('flex-1', onRail)}>{item.label}</span>
+                  {due && (
+                    <Badge tone="accent" className={onRail}>
+                      {dueTotal > 999 ? '999+' : dueTotal}
+                    </Badge>
+                  )}
+                  {due && navCollapsed && (
+                    <span className="absolute right-1.5 top-1.5 hidden h-1.5 w-1.5 rounded-full bg-[var(--accent)] lg:block" />
+                  )}
+                </Link>
+              </Tooltip>
             )
           })}
         </nav>
 
-        <div className="border-t border-[var(--border)] p-3">
-          <JobTray />
-          <Link
-            to="/settings"
-            className={cn(
-              'mt-2 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors',
-              pathname.startsWith('/settings')
-                ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                : 'text-[var(--text-muted)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]',
-            )}
-          >
-            <SettingsIcon className="h-4 w-4" />
-            Settings
-          </Link>
+        <div className={cn('border-t border-[var(--border)] p-3', navCollapsed && 'lg:p-2')}>
+          <div className={onRail}>
+            <JobTray />
+          </div>
+          {navCollapsed && busyJobs > 0 && (
+            <Tooltip label={`${busyJobs} job${busyJobs === 1 ? '' : 's'} running`} side="right">
+              <button
+                type="button"
+                aria-label="Show running jobs"
+                onClick={() => setNavCollapsed(false)}
+                className="hidden w-full place-items-center rounded-lg py-2 hover:bg-[var(--bg-sunken)] lg:grid"
+              >
+                <Loader2 className="h-4 w-4 animate-spin text-[var(--accent)]" />
+              </button>
+            </Tooltip>
+          )}
+          <Tooltip label={navCollapsed ? 'Settings' : null} side="right">
+            <Link
+              to="/settings"
+              className={cn(
+                'mt-2 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors',
+                navCollapsed && 'lg:justify-center lg:px-0',
+                pathname.startsWith('/settings')
+                  ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                  : 'text-[var(--text-muted)] hover:bg-[var(--bg-sunken)] hover:text-[var(--text)]',
+              )}
+            >
+              <SettingsIcon className="h-4 w-4 shrink-0" />
+              <span className={onRail}>Settings</span>
+            </Link>
+          </Tooltip>
         </div>
       </aside>
 

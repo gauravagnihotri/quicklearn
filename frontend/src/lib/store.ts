@@ -157,6 +157,19 @@ interface UiState {
   setPaletteOpen: (open: boolean) => void
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
+  /** Local patch: desktop sidebar shrunk to an icon rail. Remembered per browser. */
+  navCollapsed: boolean
+  setNavCollapsed: (collapsed: boolean) => void
+}
+
+const NAV_COLLAPSED_KEY = 'quicklearn-nav-collapsed'
+
+function readNavCollapsed(): boolean {
+  try {
+    return localStorage.getItem(NAV_COLLAPSED_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 export const useUi = create<UiState>((set) => ({
@@ -165,4 +178,13 @@ export const useUi = create<UiState>((set) => ({
   // Collapsed by default on narrow screens; the layout opens it on desktop at mount.
   sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
+  navCollapsed: readNavCollapsed(),
+  setNavCollapsed: (navCollapsed) => {
+    try {
+      localStorage.setItem(NAV_COLLAPSED_KEY, navCollapsed ? '1' : '0')
+    } catch {
+      // Private windows can refuse storage; the toggle still works for this visit.
+    }
+    set({ navCollapsed })
+  },
 }))

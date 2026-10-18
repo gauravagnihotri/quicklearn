@@ -35,6 +35,8 @@ so upstream defaults are unchanged.
 | Cards with `{{c1::…}}` become cloze; `{{c1:` is repaired | `pipeline/schemas.py` | Models omit `type` on cloze cards |
 | Card text renders cloze blanks (until flipped), inline `$maths$` and `` `code` `` | `frontend/src/components/CardText.tsx`, `routes/Review.tsx`, `routes/Source.tsx` | Upstream printed card text verbatim: `{{c1::answer}}` gave the answer away and formulas showed raw LaTeX |
 | Conversations can be deleted from the chat sidebar | `frontend/src/routes/Chat.tsx` | Upstream had the API endpoint and client call but no button for it |
+| Chat retrieval matches any word of the question on the keyword side (`OR`, BM25-ranked); the search box still needs every word | `db/search.py`, `rag/retrieve.py` | Typed questions rarely have every word in one passage, so chat silently ran on vector search alone |
+| Desktop sidebar collapses to an icon rail (remembered per browser) | `frontend/src/components/layout/AppShell.tsx`, `lib/store.ts` | Requested |
 
 ## Updating
 

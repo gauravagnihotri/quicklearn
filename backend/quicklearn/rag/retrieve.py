@@ -164,7 +164,9 @@ async def retrieve(
 
     def keyword_leg() -> list[int]:
         with raw_sqlite() as conn:
-            hits = fts_search(conn, query, kinds=["segment"], source_ids=source_ids, limit=top_k)
+            hits = fts_search(
+                conn, query, kinds=["segment"], source_ids=source_ids, limit=top_k, any_terms=True
+            )
         return [hit.entity_id for hit in hits]
 
     vector_ids, keyword_ids = await asyncio.gather(vector_leg(), asyncio.to_thread(keyword_leg))
