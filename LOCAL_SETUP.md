@@ -6,7 +6,7 @@ inference on a workstation GPU (RTX 4500 Ada, 24 GB) at 192.168.86.20:
 | Port | Service | Serve script (in `~/Documents/fix_gpu_drivers`) |
 |---|---|---|
 | 8000 | vLLM v0.29.0, Gemma 4 26B-A4B QAT AWQ INT4, thinking on | `serve_gemma4.sh` |
-| 8001 | speaches: faster-whisper large-v3-turbo (STT) + Kokoro 82M (TTS) | `serve_speaches.sh` |
+| 8001 | speaches: distil-whisper large-v3 (STT, English) + Kokoro 82M (TTS) | `serve_speaches.sh` |
 
 Embeddings stay on the default local fastembed model inside the container.
 `docker-compose.override.yml` wires the providers up through environment variables.
@@ -25,7 +25,7 @@ so upstream defaults are unchanged.
 | Empty headings fall back to the section title; leading `#`s stripped | `pipeline/generate/notes.py` | Models omit heading text (headings were dropped) or keep Markdown `##` |
 | Outer `$`/`$$` stripped from maths blocks | `pipeline/generate/notes.py` | KaTeX rejects delimiters inside a block that is already maths |
 | Cards with `{{c1::…}}` become cloze; `{{c1:` is repaired | `pipeline/schemas.py` | Models omit `type` on cloze cards |
-| Cloze deletions render as blanks until the card is flipped | `frontend/src/components/ClozeText.tsx`, `routes/Review.tsx`, `routes/Source.tsx` | Upstream only handles cloze in the Anki export; the app showed `{{c1::answer}}` raw |
+| Card text renders cloze blanks (until flipped), inline `$maths$` and `` `code` `` | `frontend/src/components/CardText.tsx`, `routes/Review.tsx`, `routes/Source.tsx` | Upstream printed card text verbatim: `{{c1::answer}}` gave the answer away and formulas showed raw LaTeX |
 
 ## Updating
 

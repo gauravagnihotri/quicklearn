@@ -10,7 +10,7 @@ import { api, ApiError } from '../lib/api'
 import { useJobs, usePlayer } from '../lib/store'
 import type { NoteStyle } from '../lib/types'
 import { cn, formatDuration, kindLabel } from '../lib/utils'
-import { ClozeText } from '../components/ClozeText'
+import { CardText } from '../components/CardText'
 import { NoteEditor } from '../components/editor/NoteEditor'
 import { AudioPlayer } from '../components/player/AudioPlayer'
 import { TranscriptPanel } from '../components/player/TranscriptPanel'
@@ -634,12 +634,12 @@ function CardsTab({
             <CardBody className="py-3">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-medium">
-                  <ClozeText text={card.front} revealed />
+                  <CardText text={card.front} revealed />
                 </p>
                 <Badge>{card.type}</Badge>
               </div>
               <p className="mt-1.5 border-t border-[var(--border)] pt-1.5 text-sm text-[var(--text-muted)]">
-                {card.back}
+                <CardText text={card.back} revealed />
               </p>
               <p className="mt-2 text-[10px] text-[var(--text-muted)]">
                 {card.state} · {card.reps} review{card.reps === 1 ? '' : 's'}
