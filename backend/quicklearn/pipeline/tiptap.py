@@ -12,6 +12,8 @@ attributes during an edit round-trip would quietly break the product's core trus
 
 from __future__ import annotations
 
+import html
+import itertools
 import json
 import re
 from typing import Any
@@ -26,70 +28,194 @@ def _text_nodes(text: str) -> list[TipTapNode]:
     return [{"type": "text", "text": text}] if text else []
 
 
+# --------------------------------------------------------------------------- inline markup
+#
+# Local patch: the note prompt allows a small inline markup in block text — **bold**, *italic*,
+# `code`, $maths$ and blank-line paragraphs — and these helpers turn it into real marks and
+# blocks. Upstream put every string in verbatim, so whatever the model improvised (`<b>`,
+# `**`, numbered steps inside a callout) showed as raw characters. Stray HTML is converted the
+# same way, so older outputs and a model that ignores the rule still render.
+
+_MATH = re.compile(r"\$[^$\n]+\$")
+_INLINE = re.compile(
+    r"(?P<math>\$[^$\n]+\$)"
+    r"|`(?P<code>[^`\n]+)`"
+    r"|\*\*(?P<bold>.+?)\*\*"
+    r"|(?<![\w*])\*(?P<italic>[^*\s](?:[^*\n]*[^*\s])?)\*(?![\w*])"
+)
+_HTML_MARKS = [
+    (re.compile(r"<(b|strong)>(.*?)</\1>", re.I | re.S), r"**\2**"),
+    (re.compile(r"<(i|em)>(.*?)</\1>", re.I | re.S), r"*\2*"),
+    (re.compile(r"<code>(.*?)</code>", re.I | re.S), r"`\1`"),
+    (re.compile(r"<br\s*/?>", re.I), "\n"),
+    (re.compile(r"</p>\s*<p[^>]*>", re.I), "\n\n"),
+    (re.compile(r"<li[^>]*>", re.I), "\n- "),
+]
+# Only known tag names are stripped: a bare `<` pattern would also eat text like "x<y and z>w".
+_HTML_LEFTOVER = re.compile(
+    r"</?(?:p|div|span|ul|ol|li|u|mark|sup|sub|small|strong|b|i|em|code|h[1-6])\b[^>]*>", re.I
+)
+_BULLET_LINE = re.compile(r"^\s*[-*•]\s+(.*)$")
+_NUMBERED_LINE = re.compile(r"^\s*\d+[.)]\s+(.*)$")
+
+
+def _line_kind(line: str) -> str:
+    if _NUMBERED_LINE.match(line):
+        return "numbered"
+    return "bullet" if _BULLET_LINE.match(line) else "prose"
+
+
+def unhtml(text: str) -> str:
+    """HTML from the model to the inline markup, leaving maths untouched."""
+    if "<" not in text and "&" not in text:
+        return text
+    parts = _MATH.split(text)
+    maths = _MATH.findall(text)
+    out: list[str] = []
+    for index, part in enumerate(parts):
+        for pattern, replacement in _HTML_MARKS:
+            part = pattern.sub(replacement, part)
+        out.append(html.unescape(_HTML_LEFTOVER.sub("", part)))
+        if index < len(maths):
+            out.append(maths[index])
+    return "".join(out)
+
+
+def _plain(text: str, marks: tuple[str, ...]) -> list[TipTapNode]:
+    nodes: list[TipTapNode] = []
+    for index, line in enumerate(text.split("\n")):
+        if index:
+            nodes.append({"type": "hardBreak"})
+        if line:
+            node: TipTapNode = {"type": "text", "text": line}
+            if marks:
+                node["marks"] = [{"type": mark} for mark in marks]
+            nodes.append(node)
+    return nodes
+
+
+def _inline(text: str, marks: tuple[str, ...] = ()) -> list[TipTapNode]:
+    nodes: list[TipTapNode] = []
+    position = 0
+    for match in _INLINE.finditer(text):
+        nodes += _plain(text[position : match.start()], marks)
+        if match["math"]:
+            # One unmarked-by-us text node, so the editor's KaTeX decoration sees all of it.
+            nodes += _plain(match["math"], marks)
+        elif match["code"] is not None:
+            nodes.append({"type": "text", "text": match["code"], "marks": [{"type": "code"}]})
+        elif match["bold"] is not None:
+            nodes += _inline(match["bold"], (*marks, "bold"))
+        else:
+            nodes += _inline(match["italic"], (*marks, "italic"))
+        position = match.end()
+    return nodes + _plain(text[position:], marks)
+
+
+def inline_nodes(text: str) -> list[TipTapNode]:
+    """Text with inline markup as TipTap text nodes; no trailing or leading line breaks."""
+    nodes = _inline(unhtml(text).strip())
+    while nodes and nodes[0]["type"] == "hardBreak":
+        nodes.pop(0)
+    while nodes and nodes[-1]["type"] == "hardBreak":
+        nodes.pop()
+    return nodes
+
+
+def _paragraph(text: str, attrs: dict[str, Any] | None = None) -> TipTapNode:
+    node: TipTapNode = {"type": "paragraph", "content": inline_nodes(text)}
+    if attrs is not None:
+        node = {"type": "paragraph", "attrs": attrs, "content": node["content"]}
+    return node
+
+
+def _list_node(items: list[str], ordered: bool, attrs: dict[str, Any] | None) -> TipTapNode:
+    node: TipTapNode = {"type": "orderedList" if ordered else "bulletList"}
+    if ordered or attrs is not None:
+        node["attrs"] = {**(attrs or {}), **({"start": 1} if ordered else {})}
+    node["content"] = [{"type": "listItem", "content": [_paragraph(item)]} for item in items]
+    return node
+
+
+def rich_blocks(text: str, attrs: dict[str, Any] | None = None) -> list[TipTapNode]:
+    """Text to paragraphs and lists: blank lines split paragraphs, `- ` / `1. ` lines are lists.
+
+    ``attrs`` goes on every node produced, so each keeps its gutter anchor.
+    """
+    nodes: list[TipTapNode] = []
+    for chunk in re.split(r"\n\s*\n", unhtml(text).strip()):
+        lines = [line for line in chunk.split("\n") if line.strip()]
+        # Consecutive lines of one kind — prose, bullet or numbered — become one node.
+        for kind, run in itertools.groupby(lines, key=_line_kind):
+            group = list(run)
+            if kind == "prose":
+                nodes.append(_paragraph("\n".join(group), attrs))
+            else:
+                pattern = _NUMBERED_LINE if kind == "numbered" else _BULLET_LINE
+                items = [pattern.match(line).group(1) for line in group]  # type: ignore[union-attr]
+                nodes.append(_list_node(items, kind == "numbered", attrs))
+    return [node for node in nodes if node.get("content")]
+
+
 def _attrs(block: NoteBlockOut, **extra: Any) -> dict[str, Any]:
     return {"segmentIds": list(block.segment_ids), **extra}
 
 
-def block_to_node(block: NoteBlockOut) -> TipTapNode | None:
+def block_to_nodes(block: NoteBlockOut) -> list[TipTapNode]:
     kind = block.type
 
     if kind == "heading":
-        return {
-            "type": "heading",
-            "attrs": _attrs(block, level=block.level or 2),
-            "content": _text_nodes(block.text),
-        }
+        return [
+            {
+                "type": "heading",
+                "attrs": _attrs(block, level=block.level or 2),
+                "content": inline_nodes(block.text),
+            }
+        ]
 
     if kind == "para":
-        return {"type": "paragraph", "attrs": _attrs(block), "content": _text_nodes(block.text)}
+        return rich_blocks(block.text, _attrs(block))
 
     if kind == "list":
-        items = block.items or [line for line in block.text.split("\n") if line.strip()]
-        if not items:
-            return None
-        return {
-            "type": "bulletList",
-            "attrs": _attrs(block),
-            "content": [
-                {
-                    "type": "listItem",
-                    "content": [{"type": "paragraph", "content": _text_nodes(item.strip())}],
-                }
-                for item in items
-                if item.strip()
-            ],
-        }
+        items = [item.strip() for item in block.items if item.strip()] or [
+            line for line in block.text.split("\n") if line.strip()
+        ]
+        return [_list_node(items, False, _attrs(block))] if items else []
 
     if kind == "latex":
-        return {"type": "mathBlock", "attrs": _attrs(block, latex=block.text)}
+        return [{"type": "mathBlock", "attrs": _attrs(block, latex=block.text)}]
 
     if kind == "mermaid":
-        return {"type": "mermaidBlock", "attrs": _attrs(block, code=block.text)}
+        return [{"type": "mermaidBlock", "attrs": _attrs(block, code=block.text)}]
 
     if kind == "code":
-        return {
-            "type": "codeBlock",
-            "attrs": _attrs(block, language=block.language or "text"),
-            "content": _text_nodes(block.text),
-        }
+        return [
+            {
+                "type": "codeBlock",
+                "attrs": _attrs(block, language=block.language or "text"),
+                "content": _text_nodes(block.text),
+            }
+        ]
 
     if kind == "callout":
-        return {
-            "type": "callout",
-            "attrs": _attrs(block, variant=block.variant or "key"),
-            "content": [{"type": "paragraph", "content": _text_nodes(block.text)}],
-        }
+        return [
+            {
+                "type": "callout",
+                "attrs": _attrs(block, variant=block.variant or "key"),
+                "content": rich_blocks(block.text) or [{"type": "paragraph", "content": []}],
+            }
+        ]
 
     if kind == "table":
         if not block.headers and not block.rows:
-            return None
+            return []
         header_row = {
             "type": "tableRow",
             "content": [
                 {
                     "type": "tableHeader",
                     "attrs": {"colspan": 1, "rowspan": 1},
-                    "content": [{"type": "paragraph", "content": _text_nodes(str(h))}],
+                    "content": [_paragraph(str(h))],
                 }
                 for h in block.headers
             ],
@@ -102,14 +228,9 @@ def block_to_node(block: NoteBlockOut) -> TipTapNode | None:
                     {
                         "type": "tableCell",
                         "attrs": {"colspan": 1, "rowspan": 1},
-                        "content": [
-                            {
-                                "type": "paragraph",
-                                # Pad short rows: ProseMirror's table schema requires every
-                                # row to have the same cell count or the document is invalid.
-                                "content": _text_nodes(str(row[i]) if i < len(row) else ""),
-                            }
-                        ],
+                        # Pad short rows: ProseMirror's table schema requires every row to
+                        # have the same cell count or the document is invalid.
+                        "content": [_paragraph(str(row[i]) if i < len(row) else "")],
                     }
                     for i in range(width)
                 ],
@@ -117,13 +238,18 @@ def block_to_node(block: NoteBlockOut) -> TipTapNode | None:
             for row in block.rows
         ]
         content = ([header_row] if block.headers else []) + body
-        return {"type": "table", "attrs": _attrs(block), "content": content} if content else None
+        return [{"type": "table", "attrs": _attrs(block), "content": content}] if content else []
 
-    return {"type": "paragraph", "attrs": _attrs(block), "content": _text_nodes(block.text)}
+    return rich_blocks(block.text, _attrs(block))
+
+
+def block_to_node(block: NoteBlockOut) -> TipTapNode | None:
+    nodes = block_to_nodes(block)
+    return nodes[0] if nodes else None
 
 
 def blocks_to_doc(blocks: list[NoteBlockOut]) -> TipTapNode:
-    content = [node for node in (block_to_node(b) for b in blocks) if node is not None]
+    content = [node for block in blocks for node in block_to_nodes(block)]
     if not content:
         content = [{"type": "paragraph", "content": []}]
     return {"type": "doc", "content": content}

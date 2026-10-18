@@ -50,7 +50,8 @@ def _list_items(block: NoteBlockOut) -> list[str]:
     """Local patch: models sometimes put a whole list in ``text`` as HTML or Markdown bullets
     instead of ``items``, which rendered as one bullet of raw ``<ul><li>`` markup."""
     raw = block.items or _LIST_ITEM_HTML.findall(block.text) or block.text.splitlines()
-    items = [_BULLET.sub("", _HTML_TAG.sub("", item)).strip() for item in raw]
+    # Inline tags (<b>, <code>) become markup the converter renders; the rest are dropped.
+    items = [_BULLET.sub("", _HTML_TAG.sub("", tiptap.unhtml(item))).strip() for item in raw]
     return [item for item in items if item]
 
 

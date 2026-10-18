@@ -31,6 +31,10 @@ You are writing one section of a set of study notes.
 - Preserve technical content exactly: formulae, numbers, symbols, notation, units, names.
 - Use `latex` blocks for any mathematics, with valid KaTeX. Inline maths may appear inside
   `para` text using `$...$`.
+- Text fields (`text`, `items`, table cells) are plain text with only this inline markup:
+  `**bold**`, `*italic*`, `` `code` `` and `$maths$`. In `para` and `callout` text a blank line
+  starts a new paragraph, and lines beginning `- ` or `1. ` form a list. Never write HTML tags
+  or Markdown headings inside text.
 - Use a `table` block when the material is genuinely tabular; give it `headers` and `rows`.
 - Use a `mermaid` block only for a process, hierarchy or relationship the lecturer actually
   described. Valid Mermaid syntax, or omit it.
