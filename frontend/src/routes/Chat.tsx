@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { MessageSquare, Plus, Send, Sparkles } from 'lucide-react'
+import { MessageSquare, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { api, ApiError } from '../lib/api'
@@ -31,6 +31,16 @@ export function ChatPage() {
     },
   })
 
+  const remove = useMutation({
+    mutationFn: (chatId: number) => api.deleteChat(chatId),
+    onSuccess: (_, chatId) => {
+      queryClient.removeQueries({ queryKey: ['chat', chatId] })
+      queryClient.invalidateQueries({ queryKey: ['chats'] })
+      if (chatId === activeId) navigate({ to: '/chat', search: {} })
+    },
+    onError: (error) => toast.error(error instanceof ApiError ? error.message : 'Failed.'),
+  })
+
   useEffect(() => {
     if (search.source && !search.id) {
       const existing = chats.find(
@@ -55,22 +65,37 @@ export function ChatPage() {
         </div>
         <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
           {chats.map((chat) => (
-            <button
+            <div
               key={chat.id}
-              onClick={() => navigate({ to: '/chat', search: { id: chat.id } })}
               className={cn(
-                'w-full rounded-lg px-2.5 py-2 text-left transition-colors',
+                'group flex items-center rounded-lg transition-colors',
                 chat.id === activeId
                   ? 'bg-[var(--accent-soft)]'
                   : 'hover:bg-[var(--bg-sunken)]',
               )}
             >
-              <p className="truncate text-[13px] font-medium">{chat.title}</p>
-              <p className="text-[10px] text-[var(--text-muted)]">
-                {chat.scope_type === 'global' ? 'Whole library' : chat.scope_type} ·{' '}
-                {formatRelative(chat.created_at)}
-              </p>
-            </button>
+              <button
+                onClick={() => navigate({ to: '/chat', search: { id: chat.id } })}
+                className="min-w-0 flex-1 px-2.5 py-2 text-left"
+              >
+                <p className="truncate text-[13px] font-medium">{chat.title}</p>
+                <p className="text-[10px] text-[var(--text-muted)]">
+                  {chat.scope_type === 'global' ? 'Whole library' : chat.scope_type} ·{' '}
+                  {formatRelative(chat.created_at)}
+                </p>
+              </button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Delete conversation"
+                className="mr-1 shrink-0 opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+                onClick={() => {
+                  if (confirm(`Delete “${chat.title}”?`)) remove.mutate(chat.id)
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           ))}
           {chats.length === 0 && (
             <p className="px-2.5 py-3 text-xs text-[var(--text-muted)]">No conversations yet.</p>

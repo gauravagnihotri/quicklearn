@@ -34,6 +34,7 @@ so upstream defaults are unchanged.
 | Outer `$`/`$$` stripped from maths blocks | `pipeline/generate/notes.py` | KaTeX rejects delimiters inside a block that is already maths |
 | Cards with `{{c1::…}}` become cloze; `{{c1:` is repaired | `pipeline/schemas.py` | Models omit `type` on cloze cards |
 | Card text renders cloze blanks (until flipped), inline `$maths$` and `` `code` `` | `frontend/src/components/CardText.tsx`, `routes/Review.tsx`, `routes/Source.tsx` | Upstream printed card text verbatim: `{{c1::answer}}` gave the answer away and formulas showed raw LaTeX |
+| Conversations can be deleted from the chat sidebar | `frontend/src/routes/Chat.tsx` | Upstream had the API endpoint and client call but no button for it |
 
 ## Updating
 
