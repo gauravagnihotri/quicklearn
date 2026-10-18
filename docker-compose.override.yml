@@ -1,0 +1,20 @@
+# Local inference on the workstation (192.168.86.20): vLLM Gemma 4 26B-A4B on :8000, speaches STT/TTS on :8001.
+services:
+  quicklearn:
+    environment:
+      QUICKLEARN_LMSTUDIO_BASE_URL: http://192.168.86.20:8000/v1
+      QUICKLEARN_ROUTING_STANDARD: '{"provider": "lmstudio", "model": "gemma4"}'
+      # The "openai" provider is only used for STT/TTS, pointed at speaches
+      QUICKLEARN_PROVIDERS_OPENAI_BASE_URL: http://192.168.86.20:8001/v1
+      QUICKLEARN_OPENAI_API_KEY: local
+      QUICKLEARN_STT_PROVIDER: openai
+      QUICKLEARN_STT_MODEL: deepdml/faster-whisper-large-v3-turbo-ct2
+      QUICKLEARN_TTS_PROVIDER: openai
+      QUICKLEARN_TTS_MODEL: speaches-ai/Kokoro-82M-v1.0-ONNX
+      QUICKLEARN_TTS_VOICE_A: af_heart
+      QUICKLEARN_TTS_VOICE_B: am_michael
+      # Extra output tokens for the LLM's thinking (local patch in openai_compat.py)
+      QUICKLEARN_REASONING_HEADROOM: "16384"
+      # Model-recommended sampling and a 900 s timeout (local patches in openai_compat.py)
+      QUICKLEARN_USE_MODEL_SAMPLING: "1"
+      QUICKLEARN_LLM_LONG_TIMEOUT: "1"

@@ -13,12 +13,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from collections.abc import AsyncIterator, Sequence
 from typing import Any, Literal
 
 from ...errors import ProviderResponseError
 from ..base import ContentPart, LLMProvider, LLMResponse, Message, ModelInfo
-from ..http import DEFAULT_TIMEOUT, build_client, request_json, stream_sse
+from ..http import DEFAULT_TIMEOUT, LONG_TIMEOUT, build_client, request_json, stream_sse
 
 log = logging.getLogger(__name__)
 
@@ -62,8 +63,12 @@ class OpenAICompatLLM(LLMProvider):
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         headers.update(extra_headers or {})
+        # Local patch: a thinking model on a shared local GPU can take over 5 minutes per call.
+        long_timeout = bool(os.environ.get("QUICKLEARN_LLM_LONG_TIMEOUT"))
         self._client = build_client(
-            base_url=self.base_url, headers=headers, timeout=DEFAULT_TIMEOUT
+            base_url=self.base_url,
+            headers=headers,
+            timeout=LONG_TIMEOUT if long_timeout else DEFAULT_TIMEOUT,
         )
 
     async def aclose(self) -> None:
@@ -111,9 +116,13 @@ class OpenAICompatLLM(LLMProvider):
             "messages": [
                 {"role": m["role"], "content": _convert_content(m["content"])} for m in messages
             ],
-            "max_tokens": max_tokens,
+            # Local patch: reasoning models spend output tokens thinking before the answer,
+            # so give every call headroom on top of the caller's answer budget.
+            "max_tokens": max_tokens + int(os.environ.get("QUICKLEARN_REASONING_HEADROOM", "0")),
         }
-        if self.send_temperature:
+        # Local patch: let the server apply the model's recommended sampling instead; low
+        # temperatures make reasoning models think much longer.
+        if self.send_temperature and not os.environ.get("QUICKLEARN_USE_MODEL_SAMPLING"):
             payload["temperature"] = temperature
         if stream:
             payload["stream"] = True

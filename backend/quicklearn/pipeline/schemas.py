@@ -11,9 +11,10 @@ for the model, since the schema is included in the prompt when native enforcemen
 
 from __future__ import annotations
 
-from typing import Literal
+import re
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 BlockTypeLiteral = Literal[
     "heading", "para", "list", "table", "latex", "mermaid", "code", "callout"
@@ -45,7 +46,15 @@ class Outline(BaseModel):
     sections: list[OutlineSection] = Field(default_factory=list)
 
 
+def _require_type_and_text(schema: dict[str, Any]) -> None:
+    # Local patch: vLLM's structured output emits properties in schema order, so with everything
+    # optional a model that writes ``level`` or ``segment_ids`` first can never add ``text``.
+    schema["required"] = ["type", "text"]
+
+
 class NoteBlockOut(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require_type_and_text)
+
     type: BlockTypeLiteral = "para"
     text: str = ""
     #: heading only
@@ -108,6 +117,16 @@ class CardOut(BaseModel):
     back: str = Field(min_length=1)
     concept_id: int | None = None
     segment_ids: list[int] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _infer_cloze(self) -> CardOut:
+        """Local patch: models often write ``{{c1::...}}`` but omit ``type``, which defaults to
+        basic and shows the answer on the front."""
+        # A single colon (``{{c1:x}}``) is a common slip that stops the blank rendering.
+        self.front = re.sub(r"\{\{c(\d+):(?!:)", r"{{c\1::", self.front)
+        if self.type == "basic" and "{{c" in self.front:
+            self.type = "cloze"
+        return self
 
 
 class CardList(BaseModel):

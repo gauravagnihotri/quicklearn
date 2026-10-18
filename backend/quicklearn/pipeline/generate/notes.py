@@ -209,6 +209,10 @@ async def expand_section(
             block.type = "code"
             block.language = "text"
 
+        if block.type == "heading" and not block.text.strip():
+            # Local patch: models often omit the heading text because the section title was in
+            # the prompt; without this the heading is dropped and the note loses its structure.
+            block.text = section.title
         if block.type == "table" and not block.rows:
             continue
         if not block.text.strip() and not block.items and not block.rows:
