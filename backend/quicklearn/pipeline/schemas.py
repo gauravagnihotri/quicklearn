@@ -55,14 +55,17 @@ def _require_type_and_text(schema: dict[str, Any]) -> None:
 class NoteBlockOut(BaseModel):
     model_config = ConfigDict(json_schema_extra=_require_type_and_text)
 
+    # Local patch: field order is the order a model writes in under structured output, so the
+    # attributes that say what a block is come before ``text``. With ``text`` second, callouts got
+    # their variant name ("warning") as their only content.
     type: BlockTypeLiteral = "para"
-    text: str = ""
     #: heading only
     level: int | None = Field(default=None, ge=1, le=6)
-    #: code only
-    language: str | None = None
     #: callout only — key | warning | example | cue | summary
     variant: str | None = None
+    #: code only
+    language: str | None = None
+    text: str = ""
     #: list only
     items: list[str] = Field(default_factory=list)
     #: table only

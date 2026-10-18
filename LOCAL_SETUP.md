@@ -21,7 +21,7 @@ so upstream defaults are unchanged.
 | `QUICKLEARN_REASONING_HEADROOM` adds output tokens to every call | `providers/llm/openai_compat.py` | Thinking spends the caller's `max_tokens` before the JSON answer |
 | `QUICKLEARN_LLM_LONG_TIMEOUT` uses the 900 s timeout | `providers/llm/openai_compat.py` | Thinking calls on a shared local GPU exceed 300 s |
 | `QUICKLEARN_USE_MODEL_SAMPLING` stops sending `temperature` | `providers/llm/openai_compat.py` | Low temperatures made the model think ~50% longer |
-| Note blocks require `type` and `text` in the JSON schema | `pipeline/schemas.py` | vLLM emits properties in schema order; optional `text` got skipped |
+| Note blocks require `type` and `text`; descriptive fields (`level`, `variant`, `language`) come before `text` | `pipeline/schemas.py` | vLLM emits properties in schema order: optional `text` got skipped, and with `text` second callouts got their variant name as content |
 | Empty headings fall back to the section title; leading `#`s stripped | `pipeline/generate/notes.py` | Models omit heading text (headings were dropped) or keep Markdown `##` |
 | Outer `$`/`$$` stripped from maths blocks | `pipeline/generate/notes.py` | KaTeX rejects delimiters inside a block that is already maths |
 | Cards with `{{c1::…}}` become cloze; `{{c1:` is repaired | `pipeline/schemas.py` | Models omit `type` on cloze cards |
