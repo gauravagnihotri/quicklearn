@@ -19,6 +19,57 @@ start. Open <http://127.0.0.1:8080>, paste in an API key, upload a lecture. That
 > A `Dockerfile` and `docker-compose.yml` are included and written to spec, but **have not been
 > built or run** — treat them as unverified. The from-source path below is the tested one.
 
+> [!IMPORTANT]
+> **This is a fork** of [artbyjazi/quicklearn](https://github.com/artbyjazi/quicklearn), kept on
+> branch [`local-inference`](../../tree/local-inference). It runs every model locally on one
+> 24 GB GPU and adds a few features. The section below covers what differs; everything after it
+> is upstream's README.
+
+## This fork
+
+### What's different
+
+| | |
+|---|---|
+| **Local inference only** | LLM, speech-to-text and text-to-speech run on a workstation GPU through OpenAI-compatible servers: [vLLM](https://github.com/vllm-project/vllm) serving Gemma 4 26B-A4B (INT4, thinking on) and [speaches](https://github.com/speaches-ai/speaches) serving distil-whisper large-v3 and Kokoro. Embeddings stay on the built-in local model. No API keys, no cloud calls |
+| **Simplified notes** | Every source also gets an ADHD-friendly second note, shown with a **Simplified** switch on the Notes tab. Its prompt carries the rules of the [i-have-adhd](https://github.com/ayghri/i-have-adhd) skill (MIT) mapped onto study notes: lead with the idea to grasp, numbered steps, lists of five or fewer, a "You can now" summary and one self-check per section |
+| **Video playback** | Video sources play the original video, not just the extracted audio. Transcript clicks and note anchors seek it |
+| **Formatted note text** | The prompt defines inline markup (`**bold**`, `*italic*`, `` `code` ``, `$maths$`, paragraphs, lists) and it renders as real formatting; inline maths renders with KaTeX |
+| **Flashcards** | Cloze cards show blanks until flipped; maths and code render on cards |
+| **Safer autosave** | The server refuses note saves from a tab running an older build, during processing, from an older note version, or that would empty several blocks at once |
+| **Reasoning-model fixes** | Output-token headroom for thinking, longer timeouts, model-default sampling, and schema field ordering so vLLM structured output never drops block text |
+
+The full patch list, with files and reasons, is in [`LOCAL_SETUP.md`](LOCAL_SETUP.md).
+
+### Running this setup
+
+1. **GPU machine:** start the model servers with the scripts in [`local/`](local/). They need
+   Docker with the NVIDIA runtime. Set `HF_TOKEN` first if your Hugging Face account needs it.
+
+   ```bash
+   ./local/serve_gemma4.sh     # vLLM on :8000, served as "gemma4"
+   ./local/serve_speaches.sh   # STT + TTS on :8001
+   ```
+
+2. **App host:** clone this branch and point
+   [`docker-compose.override.yml`](docker-compose.override.yml) at the GPU machine's address
+   (`192.168.86.20` here), then build and start:
+
+   ```bash
+   git clone -b local-inference https://github.com/gauravagnihotri/quicklearn && cd quicklearn
+   docker compose up -d --build   # http://<host>:8080
+   ```
+
+Both model servers restart with Docker. Reload open QuickLearn tabs after every deploy: the
+server refuses note saves from a page built before the update.
+
+### Keeping up with upstream
+
+```bash
+git fetch upstream && git rebase upstream/main && git push --force-with-lease
+# then on the app host: git pull && docker compose up -d --build
+```
+
 ---
 
 ## What it does

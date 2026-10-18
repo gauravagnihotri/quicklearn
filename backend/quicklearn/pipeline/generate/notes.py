@@ -55,6 +55,29 @@ def _list_items(block: NoteBlockOut) -> list[str]:
     return [item for item in items if item]
 
 
+_MARKER = re.compile(r"\s*\[(\d+(?:\s*,\s*\d+)*)\]")
+_PROTECTED = re.compile(r"(\$[^$\n]+\$|`[^`\n]+`)")
+
+
+def strip_segment_markers(text: str, allowed: set[int]) -> str:
+    """Local patch: drop `[12]`-style markers the model copies from the segment list into text.
+
+    Only brackets whose every number is a segment shown for this section go, so array literals
+    from the lecture (`[5, 6, 7]`) stay; maths and inline code are never touched.
+    """
+
+    def drop(match: re.Match[str]) -> str:
+        ids = {int(part) for part in match.group(1).split(",")}
+        return "" if ids <= allowed else match.group(0)
+
+    parts = _PROTECTED.split(text)
+    cleaned = "".join(
+        part if index % 2 else _MARKER.sub(drop, part) for index, part in enumerate(parts)
+    )
+    # Removing a marker can leave "word ." or a leading space.
+    return re.sub(r"\s+([.,;:!?])", r"\1", cleaned).strip()
+
+
 #: Local patch: style of the second, ADHD-friendly note each source gets (prompts/_adhd.md).
 SIMPLIFIED_STYLE = "adhd"
 
@@ -243,6 +266,12 @@ async def expand_section(
             log.debug("demoting invalid mermaid block to code in section '%s'", section.title)
             block.type = "code"
             block.language = "text"
+
+        if block.type not in {"code", "latex", "mermaid"}:
+            block.text = strip_segment_markers(block.text, allowed)
+            block.items = [strip_segment_markers(item, allowed) for item in block.items]
+            block.headers = [strip_segment_markers(h, allowed) for h in block.headers]
+            block.rows = [[strip_segment_markers(c, allowed) for c in row] for row in block.rows]
 
         if block.type == "heading":
             # Local patch: models often omit the heading text because the section title was in

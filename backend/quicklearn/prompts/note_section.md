@@ -27,7 +27,8 @@ You are writing one section of a set of study notes.
   document.
 - Open with a `heading` block (level {{ heading_level }}) containing the section title.
 - Every block must list the `segment_ids` it came from. Use only ids from the segments below.
-  Never invent one, and never leave the list empty.
+  Never invent one, and never leave the list empty. Ids go only in `segment_ids`: never write
+  `[12]`-style markers in any text.
 - Preserve technical content exactly: formulae, numbers, symbols, notation, units, names.
 - Use `latex` blocks for any mathematics, with valid KaTeX. Inline maths may appear inside
   `para` text using `$...$`.
