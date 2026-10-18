@@ -13,6 +13,7 @@ import { cn, formatDuration, kindLabel } from '../lib/utils'
 import { CardText } from '../components/CardText'
 import { NoteEditor } from '../components/editor/NoteEditor'
 import { AudioPlayer } from '../components/player/AudioPlayer'
+import { VideoPlayer } from '../components/player/VideoPlayer'
 import { TranscriptPanel } from '../components/player/TranscriptPanel'
 import {
   Badge, Button, Card, CardBody, Dialog, DialogContent, DialogDescription, DialogTitle,
@@ -288,7 +289,11 @@ export function SourcePage() {
       {isMedia && source.has_media && (
         <Card className="mb-4">
           <CardBody className="py-3">
-            <AudioPlayer src={api.audioUrl(id)} />
+            {source.kind === 'video' ? (
+              <VideoPlayer src={api.mediaUrl(id)} audioSrc={api.audioUrl(id)} />
+            ) : (
+              <AudioPlayer src={api.audioUrl(id)} />
+            )}
           </CardBody>
         </Card>
       )}
