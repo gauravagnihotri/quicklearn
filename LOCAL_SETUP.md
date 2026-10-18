@@ -22,9 +22,10 @@ so upstream defaults are unchanged.
 | `QUICKLEARN_LLM_LONG_TIMEOUT` uses the 900 s timeout | `providers/llm/openai_compat.py` | Thinking calls on a shared local GPU exceed 300 s |
 | `QUICKLEARN_USE_MODEL_SAMPLING` stops sending `temperature` | `providers/llm/openai_compat.py` | Low temperatures made the model think ~50% longer |
 | Note blocks require `type` and `text` in the JSON schema | `pipeline/schemas.py` | vLLM emits properties in schema order; optional `text` got skipped |
-| Empty headings fall back to the section title | `pipeline/generate/notes.py` | Models omit heading text, so headings were dropped |
+| Empty headings fall back to the section title; leading `#`s stripped | `pipeline/generate/notes.py` | Models omit heading text (headings were dropped) or keep Markdown `##` |
 | Outer `$`/`$$` stripped from maths blocks | `pipeline/generate/notes.py` | KaTeX rejects delimiters inside a block that is already maths |
-| Cards with `{{c1::…}}` become cloze; `{{c1:` is repaired | `pipeline/schemas.py` | Models omit `type`, so cloze cards showed the answer on the front |
+| Cards with `{{c1::…}}` become cloze; `{{c1:` is repaired | `pipeline/schemas.py` | Models omit `type` on cloze cards |
+| Cloze deletions render as blanks until the card is flipped | `frontend/src/components/ClozeText.tsx`, `routes/Review.tsx`, `routes/Source.tsx` | Upstream only handles cloze in the Anki export; the app showed `{{c1::answer}}` raw |
 
 ## Updating
 

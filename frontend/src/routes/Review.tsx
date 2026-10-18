@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { api, ApiError } from '../lib/api'
 import type { Card as CardType } from '../lib/types'
 import { cn, downloadBlob } from '../lib/utils'
+import { ClozeText, clozeAnswers } from '../components/ClozeText'
 import {
   Badge, Button, Card, CardBody, EmptyState, Kbd, Progress, Skeleton,
 } from '../components/ui'
@@ -218,10 +219,11 @@ export function ReviewPage() {
 
           <div className="flex flex-1 flex-col justify-center py-6">
             <p className="whitespace-pre-wrap text-center text-lg leading-relaxed">
-              {card.front}
+              <ClozeText text={card.front} revealed={revealed} />
             </p>
 
-            {revealed && (
+            {/* A cloze card's back usually just repeats the answer the front now shows. */}
+            {revealed && card.back.trim() !== clozeAnswers(card.front).join(', ') && (
               <div className="animate-in-up mt-6 border-t border-[var(--border)] pt-6">
                 <p className="whitespace-pre-wrap text-center text-[17px] leading-relaxed text-[var(--text-muted)]">
                   {card.back}

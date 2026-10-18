@@ -209,10 +209,10 @@ async def expand_section(
             block.type = "code"
             block.language = "text"
 
-        if block.type == "heading" and not block.text.strip():
+        if block.type == "heading":
             # Local patch: models often omit the heading text because the section title was in
-            # the prompt; without this the heading is dropped and the note loses its structure.
-            block.text = section.title
+            # the prompt (without this the heading is dropped), or keep Markdown's leading #s.
+            block.text = block.text.strip().lstrip("#").strip() or section.title
         if block.type == "latex":
             # Local patch: models wrap display maths in $...$ or $$...$$, which KaTeX rejects
             # inside a block that is already maths.
