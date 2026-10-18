@@ -3,11 +3,13 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { Selection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import type { ViewMutationRecord } from '@tiptap/pm/view'
+import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import katex from 'katex'
 import { AlertTriangle, Key, Lightbulb, ListChecks, Quote } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 /**
  * Custom nodes beyond TipTap's defaults: block maths, Mermaid diagrams and callouts.
@@ -240,19 +242,48 @@ const CALLOUT_META: Record<string, { label: string; icon: typeof Key }> = {
   summary: { label: 'Summary', icon: Quote },
 }
 
-function CalloutView({ node }: NodeViewProps) {
-  const variant = String(node.attrs.variant ?? 'key')
-  const meta = CALLOUT_META[variant] ?? CALLOUT_META.key
-  const Icon = meta.icon
-  return (
-    <NodeViewWrapper className="ql-callout" data-variant={variant}>
-      <span className="ql-callout-label" contentEditable={false}>
-        <Icon className="mr-1 inline h-3 w-3" />
-        {meta.label}
-      </span>
-      <NodeViewContent />
-    </NodeViewWrapper>
-  )
+/**
+ * Local patch: a plain DOM node view rather than a React one. With React, the editable content
+ * hole is mounted asynchronously, and on some machines a re-render landed after ProseMirror had
+ * filled it; ProseMirror read that as the user deleting the text and autosaved empty callouts.
+ * Here ProseMirror owns `contentDOM` outright and only the non-editable label is redrawn.
+ */
+function calloutNodeView(initial: ProseMirrorNode) {
+  const dom = document.createElement('div')
+  dom.className = 'ql-callout'
+  const label = document.createElement('span')
+  label.className = 'ql-callout-label'
+  label.contentEditable = 'false'
+  const contentDOM = document.createElement('div')
+  dom.append(label, contentDOM)
+
+  let painted = ''
+  const paint = (node: ProseMirrorNode) => {
+    const variant = String(node.attrs.variant ?? 'key')
+    const ids = (node.attrs.segmentIds as number[] | undefined) ?? []
+    if (ids.length) dom.setAttribute('data-segment-ids', ids.join(','))
+    else dom.removeAttribute('data-segment-ids')
+    if (variant === painted) return
+    painted = variant
+    const meta = CALLOUT_META[variant] ?? CALLOUT_META.key
+    dom.dataset.variant = variant
+    label.innerHTML = renderToStaticMarkup(<meta.icon className="mr-1 inline h-3 w-3" />)
+    label.append(meta.label)
+  }
+  paint(initial)
+
+  return {
+    dom,
+    contentDOM,
+    update: (node: ProseMirrorNode) => {
+      if (node.type !== initial.type) return false
+      paint(node)
+      return true
+    },
+    // Only the content hole is the document; the label and gutter anchors are presentation.
+    ignoreMutation: (mutation: ViewMutationRecord) =>
+      mutation.type !== 'selection' && !contentDOM.contains(mutation.target),
+  }
 }
 
 export const Callout = Node.create({
@@ -269,7 +300,7 @@ export const Callout = Node.create({
     mergeAttributes(HTMLAttributes, { 'data-type': 'callout' }),
     0,
   ],
-  addNodeView: () => ReactNodeViewRenderer(CalloutView),
+  addNodeView: () => ({ node }) => calloutNodeView(node),
 })
 
 // ---------------------------------------------------------------- segment ids on core nodes
