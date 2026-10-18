@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from collections.abc import AsyncIterator, Sequence
 from typing import Any, Literal
 
@@ -38,6 +39,26 @@ def _convert_content(content: str | list[ContentPart]) -> Any:
             data_url = f"data:{part['media_type']};base64,{part['data']}"
             parts.append({"type": "image_url", "image_url": {"url": data_url}})
     return parts
+
+
+# Local patch: models write LaTeX inside JSON strings without doubling the backslash, so
+# `\times` decodes as a tab plus "imes", `\frac` as a form feed, `\beta` as a backspace.
+# Only commands that start with a JSON escape letter are at risk; these are the ones that
+# turn up in notes. A command must not run on into more letters, so "\nUse" or "\noted"
+# (a real newline before a word) are left alone.
+_LATEX_AT_RISK = re.compile(
+    r"(?<!\\)\\("
+    r"t(?:imes|ext(?:bf|it|rm)?|o|heta|au|an|frac|ilde|riangle)"
+    r"|f(?:rac|orall)"
+    r"|b(?:eta|ar|inom|oldsymbol|egin|ig|ot|mod)"
+    r"|r(?:ho|ight(?:arrow)?|angle|ceil|floor|m)"
+    r"|n(?:u|eq|abla|eg|ot|otin|ewline)"
+    r")(?![A-Za-z])"
+)
+
+
+def _escape_latex(text: str) -> str:
+    return _LATEX_AT_RISK.sub(r"\\\\\1", text)
 
 
 class OpenAICompatLLM(LLMProvider):
@@ -238,7 +259,7 @@ class OpenAICompatLLM(LLMProvider):
         and adding a sentence of preamble. This is *not* regex-parsing model output into a data
         structure — the result still goes through Pydantic validation. It only strips packaging.
         """
-        cleaned = text.strip()
+        cleaned = _escape_latex(text.strip())
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[-1] if "\n" in cleaned else cleaned
             if cleaned.endswith("```"):

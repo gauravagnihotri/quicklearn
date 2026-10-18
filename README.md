@@ -31,7 +31,7 @@ start. Open <http://127.0.0.1:8080>, paste in an API key, upload a lecture. That
 
 | | |
 |---|---|
-| **Local inference only** | LLM, speech-to-text and text-to-speech run on a workstation GPU through OpenAI-compatible servers: [vLLM](https://github.com/vllm-project/vllm) serving Gemma 4 26B-A4B (INT4, thinking on) and [speaches](https://github.com/speaches-ai/speaches) serving distil-whisper large-v3 and Kokoro. Embeddings stay on the built-in local model. No API keys, no cloud calls |
+| **Local inference only** | LLM, speech-to-text and text-to-speech run on a workstation GPU through OpenAI-compatible servers: [vLLM](https://github.com/vllm-project/vllm) serving Liquid LFM2.5 24B-A2B (INT4, always reasons; Gemma 4 26B-A4B is the fallback) and [speaches](https://github.com/speaches-ai/speaches) serving distil-whisper large-v3 and Kokoro. Embeddings stay on the built-in local model. No API keys, no cloud calls |
 | **Simplified notes** | Every source also gets an ADHD-friendly second note, shown with a **Simplified** switch on the Notes tab. Its prompt carries the rules of the [i-have-adhd](https://github.com/ayghri/i-have-adhd) skill (MIT) mapped onto study notes: lead with the idea to grasp, numbered steps, lists of five or fewer, a "You can now" summary and one self-check per section |
 | **Video playback** | Video sources play the original video, not just the extracted audio. Transcript clicks and note anchors seek it |
 | **Formatted note text** | The prompt defines inline markup (`**bold**`, `*italic*`, `` `code` ``, `$maths$`, paragraphs, lists) and it renders as real formatting; inline maths renders with KaTeX |
@@ -47,7 +47,7 @@ The full patch list, with files and reasons, is in [`LOCAL_SETUP.md`](LOCAL_SETU
    Docker with the NVIDIA runtime. Set `HF_TOKEN` first if your Hugging Face account needs it.
 
    ```bash
-   ./local/serve_gemma4.sh     # vLLM on :8000, served as "gemma4"
+   ./local/serve_lfm25.sh      # vLLM on :8000, served as "lfm25" (or serve_gemma4.sh as "gemma4")
    ./local/serve_speaches.sh   # STT + TTS on :8001
    ```
 

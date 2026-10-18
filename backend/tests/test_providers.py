@@ -503,3 +503,26 @@ async def test_mock_stt_timestamps_span_the_real_audio(wav_file: Path) -> None:
     assert result.segments[0].start_ms == 0
     # The fixture is a 3-second tone; segments must not run past it or the player desyncs.
     assert result.segments[-1].end_ms <= 3_500
+
+
+def test_parse_json_keeps_latex_commands_the_model_left_unescaped() -> None:
+    """Local patch: `\\times` written raw in JSON would decode as a tab plus "imes"."""
+    from quicklearn.providers.llm.openai_compat import OpenAICompatLLM
+
+    raw = (
+        r'{"text": "$3 \times 2$, $\frac{a}{b}$, $\beta$, $\rho$, $x \neq y$, $\to$, '
+        r'$O(\text{log } n)$, $\nabla f$; kept: $\\theta$, line\nnext, a\tb"}'
+    )
+    assert OpenAICompatLLM.parse_json_text(raw)["text"] == (
+        "$3 \\times 2$, $\\frac{a}{b}$, $\\beta$, $\\rho$, $x \\neq y$, $\\to$, "
+        "$O(\\text{log } n)$, $\\nabla f$; kept: $\\theta$, line\nnext, a\tb"
+    )
+
+
+def test_parse_json_leaves_real_newlines_before_words() -> None:
+    from quicklearn.providers.llm.openai_compat import OpenAICompatLLM
+
+    raw = r'{"text": "one\ne.g. two\ni.e. three\nUse four\tab\noted"}'
+    assert OpenAICompatLLM.parse_json_text(raw)["text"] == (
+        "one\ne.g. two\ni.e. three\nUse four\tab\noted"
+    )

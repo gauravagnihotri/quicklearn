@@ -5,7 +5,7 @@ inference on a workstation GPU (RTX 4500 Ada, 24 GB) at 192.168.86.20:
 
 | Port | Service | Serve script (copies in [`local/`](local/); run from `~/Documents/fix_gpu_drivers`) |
 |---|---|---|
-| 8000 | vLLM v0.29.0, Gemma 4 26B-A4B QAT AWQ INT4, thinking on | `serve_gemma4.sh` |
+| 8000 | vLLM v0.29.0, Liquid LFM2.5 24B-A2B AWQ INT4 (always reasons), served as `lfm25`. Gemma 4 26B-A4B (`serve_gemma4.sh`, served as `gemma4`) is the fallback: change the model in `docker-compose.override.yml` to match | `serve_lfm25.sh` |
 | 8001 | speaches: distil-whisper large-v3 (STT, English) + Kokoro 82M (TTS) | `serve_speaches.sh` |
 
 Embeddings stay on the default local fastembed model inside the container.
@@ -38,6 +38,7 @@ so upstream defaults are unchanged.
 | Chat retrieval matches any word of the question on the keyword side (`OR`, BM25-ranked); the search box still needs every word | `db/search.py`, `rag/retrieve.py` | Typed questions rarely have every word in one passage, so chat silently ran on vector search alone |
 | Desktop sidebar collapses to an icon rail (remembered per browser) | `frontend/src/components/layout/AppShell.tsx`, `lib/store.ts` | Requested |
 | Chat answers render markdown: bold, lists, headings, tables, code, `$maths$` (KaTeX); citations stay clickable | `frontend/src/lib/markdown.ts`, `components/Markdown.tsx`, `routes/Chat.tsx`; tests in `frontend/tests` (`npm test`) | Upstream printed answers verbatim, so `**bold**`, `*` bullets and `$O(n)$` showed raw |
+| LaTeX commands the model leaves unescaped in JSON (`\times`, `\frac`, `\beta`…) are repaired before parsing | `providers/llm/openai_compat.py` | JSON decoded them as tab, form feed and backspace, so formulas in notes lost their commands |
 
 ## Updating
 
