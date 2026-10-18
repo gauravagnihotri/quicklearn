@@ -35,20 +35,29 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 export function NoteEditor({
   noteId,
   doc,
+  version,
   editable = true,
   onAnchorClick,
   onDirty,
+  onConflict,
 }: {
   noteId: number
   doc: TipTapDoc
+  /** The note version `doc` came from; the server refuses saves based on an older one. */
+  version?: number
   editable?: boolean
   /** Called when a gutter anchor is clicked, with the segments backing that block. */
   onAnchorClick?: (segmentIds: number[]) => void
   onDirty?: () => void
+  onConflict?: () => void
 }) {
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [aiBusy, setAiBusy] = useState<string | null>(null)
   const skipNextUpdate = useRef(true)
+  const versionRef = useRef(version)
+  versionRef.current = version
+  const onConflictRef = useRef(onConflict)
+  onConflictRef.current = onConflict
 
   const save = useRef(
     // 800ms debounce, per PRD §7.2. Long enough not to fire mid-word, short enough that a
@@ -56,11 +65,13 @@ export function NoteEditor({
     debounce((noteIdArg: number, json: unknown) => {
       setSaveState('saving')
       api
-        .saveNote(noteIdArg, json)
+        .saveNote(noteIdArg, json, versionRef.current)
         .then(() => setSaveState('saved'))
         .catch((error) => {
           setSaveState('error')
           toast.error(error instanceof ApiError ? error.message : 'Could not save your changes.')
+          // A refused save means the editor is out of step with the server; show the server's.
+          if (error instanceof ApiError && error.status === 409) onConflictRef.current?.()
         })
     }, 800),
   ).current

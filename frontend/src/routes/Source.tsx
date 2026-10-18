@@ -322,9 +322,17 @@ export function SourcePage() {
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
               <Card>
                 <CardBody className="px-5 py-4 sm:px-8 sm:py-6">
+                  {activeJob && (
+                    <p className="mb-3 rounded-md bg-[var(--bg-sunken)] px-3 py-2 text-xs text-[var(--text-muted)]">
+                      Still processing — editing unlocks when it finishes.
+                    </p>
+                  )}
                   <NoteEditor
                     noteId={note.id}
                     doc={note.doc}
+                    version={note.version}
+                    editable={!activeJob}
+                    onConflict={() => queryClient.invalidateQueries({ queryKey: ['source', id] })}
                     onAnchorClick={jumpToSource}
                     onDirty={() => queryClient.setQueryData(['source', id], (old: typeof data) =>
                       old?.note ? { ...old, note: { ...old.note, is_dirty: true } } : old,

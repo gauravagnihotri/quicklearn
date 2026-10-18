@@ -208,6 +208,8 @@ async def test_regenerate_warns_when_the_note_was_edited(client: httpx.AsyncClie
         await client.post(f"/sources/{source_id}/regenerate", json={"target": "notes"})
     ).json()
     assert before["note_was_edited"] is False
+    # Local patch: notes refuse saves while a job for the source is queued, so let it finish.
+    await drain()
 
     await client.patch(
         f"/notes/{note_id}",
@@ -220,6 +222,97 @@ async def test_regenerate_warns_when_the_note_was_edited(client: httpx.AsyncClie
     )
     after = (await client.post(f"/sources/{source_id}/regenerate", json={"target": "notes"})).json()
     assert after["note_was_edited"] is True
+
+
+def _callout(text: str) -> dict[str, Any]:
+    return {
+        "type": "callout",
+        "attrs": {"variant": "key"},
+        "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": text}] if text else []}
+        ],
+    }
+
+
+def _doc(*nodes: dict[str, Any]) -> dict[str, Any]:
+    return {"type": "doc", "content": list(nodes)}
+
+
+async def _ready_note(client: httpx.AsyncClient) -> tuple[int, int, dict[str, Any]]:
+    source_id = (
+        await client.post(
+            "/sources/text",
+            json={"title": "Guarded", "content": "Content about ribosomes and proteins. " * 20},
+        )
+    ).json()["source_id"]
+    await drain()
+    note = (await client.get(f"/sources/{source_id}")).json()["note"]
+    return source_id, note["id"], note
+
+
+async def test_note_save_refused_while_source_processes(client: httpx.AsyncClient) -> None:
+    """Local patch: a regeneration in flight would overwrite the save anyway."""
+    source_id, note_id, _ = await _ready_note(client)
+    await client.post(f"/sources/{source_id}/regenerate", json={"target": "notes"})
+
+    response = await client.patch(f"/notes/{note_id}", json={"doc": _doc(_callout("mine"))})
+    assert response.status_code == 409
+
+    await drain()
+    response = await client.patch(f"/notes/{note_id}", json={"doc": _doc(_callout("mine"))})
+    assert response.status_code == 200
+
+
+async def test_note_save_refused_from_older_version(client: httpx.AsyncClient) -> None:
+    source_id, note_id, note = await _ready_note(client)
+    await client.post(f"/sources/{source_id}/regenerate", json={"target": "notes"})
+    await drain()
+
+    stale = await client.patch(
+        f"/notes/{note_id}", json={"doc": _doc(_callout("old")), "base_version": note["version"]}
+    )
+    assert stale.status_code == 409
+    current = (await client.get(f"/notes/{note_id}")).json()["version"]
+    fresh = await client.patch(
+        f"/notes/{note_id}", json={"doc": _doc(_callout("new")), "base_version": current}
+    )
+    assert fresh.status_code == 200
+
+
+async def test_note_save_refused_when_it_blanks_several_blocks(client: httpx.AsyncClient) -> None:
+    """The empty-callout signature: blocks keep their place but every one loses its text."""
+    _, note_id, _ = await _ready_note(client)
+    full = _doc(_callout("one"), _callout("two"), _callout("three"))
+    assert (await client.patch(f"/notes/{note_id}", json={"doc": full})).status_code == 200
+
+    one_cleared = _doc(_callout(""), _callout("two"), _callout("three"))
+    assert (await client.patch(f"/notes/{note_id}", json={"doc": one_cleared})).status_code == 200
+
+    blanked = _doc(_callout(""), _callout(""), _callout(""))
+    assert (await client.patch(f"/notes/{note_id}", json={"doc": blanked})).status_code == 409
+    saved = (await client.get(f"/notes/{note_id}")).json()["doc"]
+    assert saved == one_cleared
+
+
+async def test_note_save_refused_from_another_ui_build(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A tab left open across a deploy runs the old code; it must not write."""
+    from quicklearn.api import notes as notes_api
+
+    _, note_id, _ = await _ready_note(client)
+    monkeypatch.setattr(notes_api, "_served_build", lambda: "build-2")
+    doc = {"doc": _doc(_callout("x"))}
+
+    assert (await client.patch(f"/notes/{note_id}", json=doc)).status_code == 409
+    old = await client.patch(
+        f"/notes/{note_id}", json=doc, headers={"X-Quicklearn-Build": "build-1"}
+    )
+    assert old.status_code == 409
+    ok = await client.patch(
+        f"/notes/{note_id}", json=doc, headers={"X-Quicklearn-Build": "build-2"}
+    )
+    assert ok.status_code == 200
 
 
 async def test_note_exports(client: httpx.AsyncClient) -> None:

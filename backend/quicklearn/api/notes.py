@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import functools
 import io
 import logging
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Header, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from .. import prompts
-from ..db.models import Note, NoteBlock, Segment, Source
+from ..config import get_config
+from ..db.enums import JobStatus
+from ..db.models import Job, Note, NoteBlock, Segment, Source
 from ..db.session import session_scope
-from ..errors import NotFoundError, ValidationError
+from ..errors import ConflictError, NotFoundError, ValidationError
 from ..pipeline import tiptap
 from ..pipeline.generate.notes import reindex_note
 from ..providers import gateway
@@ -30,6 +33,33 @@ AiAction = Literal["explain", "expand", "simplify", "key_points", "rewrite"]
 class NotePatch(BaseModel):
     doc: dict[str, Any] | None = None
     title: str | None = None
+    #: Local patch: the note version the editor loaded. Regeneration bumps it, so a save from a
+    #: tab still showing the previous generation is refused instead of overwriting the new one.
+    base_version: int | None = None
+
+
+def _top_level_texts(doc: dict[str, Any]) -> list[tuple[str, str]]:
+    return [
+        (str(node.get("type")), tiptap._collect_text(node).strip())
+        for node in doc.get("content") or []
+    ]
+
+
+def _blanked_blocks(old: dict[str, Any], new: dict[str, Any]) -> int:
+    """Blocks that kept their type and position but lost all their text.
+
+    Local patch: the signature of the editor silently dropping node content (empty callouts)
+    and saving it. A person deletes text one block at a time, and removing whole blocks shifts
+    the structure, so two or more blanked in one debounced save is not an edit.
+    """
+    before, after = _top_level_texts(old), _top_level_texts(new)
+    if len(before) != len(after):
+        return 0
+    return sum(
+        1
+        for (old_type, old_text), (new_type, new_text) in zip(before, after, strict=True)
+        if old_type == new_type and old_text and not new_text
+    )
 
 
 class AiActionRequest(BaseModel):
@@ -63,8 +93,46 @@ def get_note(note_id: int) -> dict[str, Any]:
         return payload
 
 
+@functools.cache
+def _served_build() -> str | None:
+    """The UI build being served, or None in development where Vite serves it."""
+    path = get_config().static_dir / "build-id.txt"
+    return path.read_text().strip() if path.exists() else None
+
+
+def _guard_doc_write(
+    session: Any, note: Note, payload: NotePatch, client_build: str | None
+) -> None:
+    """Local patch: refuse autosaves that can only be accidents (see LOCAL_SETUP.md)."""
+    served = _served_build()
+    if served is not None and client_build != served:
+        # A tab opened before a deploy keeps running the old code; its saves are what emptied
+        # callouts after the fix had shipped.
+        log.warning("refused save of note %s from stale UI build %r", note.id, client_build)
+        raise ConflictError("QuickLearn was updated since this page loaded. Reload the page.")
+    busy = session.execute(
+        select(Job.id).where(
+            Job.source_id == note.source_id,
+            Job.parent_id.is_(None),
+            Job.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
+        )
+    ).first()
+    if busy is not None:
+        raise ConflictError("This source is still processing — edits are paused until it finishes.")
+    if payload.base_version is not None and payload.base_version != note.version:
+        raise ConflictError("This note was regenerated since you opened it. Reload to see it.")
+    blanked = _blanked_blocks(note.doc or {}, payload.doc or {})
+    if blanked >= 2:
+        log.warning("refused save of note %s: %d blocks lost all their text", note.id, blanked)
+        raise ConflictError("Save refused: it would have erased the text of several blocks.")
+
+
 @router.patch("/{note_id}")
-async def patch_note(note_id: int, payload: NotePatch) -> dict[str, Any]:
+async def patch_note(
+    note_id: int,
+    payload: NotePatch,
+    x_quicklearn_build: Annotated[str | None, Header()] = None,
+) -> dict[str, Any]:
     """Autosave. The client debounces at 800ms; this just has to be quick and idempotent."""
 
     def save() -> dict[str, Any]:
@@ -75,6 +143,7 @@ async def patch_note(note_id: int, payload: NotePatch) -> dict[str, Any]:
             if payload.doc is not None:
                 if payload.doc.get("type") != "doc":
                     raise ValidationError("Document must be a TipTap doc node.")
+                _guard_doc_write(session, note, payload, x_quicklearn_build)
                 note.doc = payload.doc
                 # Marks the note as hand-edited, so regeneration warns before overwriting
                 # rather than silently discarding the user's work (PRD §12.3).

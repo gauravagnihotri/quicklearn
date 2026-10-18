@@ -151,7 +151,12 @@ export const api = {
 
   // ---------------------------------------------------------------- notes
   getNote: (id: number) => get<Note>(`/notes/${id}`),
-  saveNote: (id: number, doc: unknown) => patch<Note>(`/notes/${id}`, { doc }),
+  saveNote: (id: number, doc: unknown, baseVersion?: number) =>
+    request<Note>(`/notes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ doc, base_version: baseVersion }),
+      headers: { 'X-Quicklearn-Build': __BUILD_ID__ },
+    }),
   renameNote: (id: number, title: string) => patch<Note>(`/notes/${id}`, { title }),
   noteSegments: (id: number) => get<{ segments: Segment[] }>(`/notes/${id}/segments`),
   aiAction: (id: number, action: string, selection: string, context = '') =>

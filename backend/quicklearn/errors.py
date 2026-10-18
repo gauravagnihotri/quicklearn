@@ -44,6 +44,12 @@ class ValidationError(QuicklearnError):
     status_code = 422
 
 
+class ConflictError(QuicklearnError):
+    """Local patch: the write is based on stale state, e.g. an autosave of a regenerated note."""
+
+    status_code = 409
+
+
 class ProviderError(QuicklearnError):
     """Base for anything that went wrong talking to an inference provider."""
 
