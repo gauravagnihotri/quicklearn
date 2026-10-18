@@ -19,7 +19,7 @@ import { api, ApiError } from '../../lib/api'
 import type { TipTapDoc } from '../../lib/types'
 import { cn, debounce } from '../../lib/utils'
 import { Button, Spinner, Tooltip } from '../ui'
-import { Callout, MathBlock, MermaidBlock, SegmentAnchors } from './extensions'
+import { Callout, InlineMath, MathBlock, MermaidBlock, SegmentAnchors } from './extensions'
 
 const lowlight = createLowlight(common)
 
@@ -86,6 +86,7 @@ export function NoteEditor({
         MermaidBlock,
         Callout,
         SegmentAnchors,
+        InlineMath,
       ],
       content: doc,
       editorProps: {

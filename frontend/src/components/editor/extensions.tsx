@@ -1,4 +1,8 @@
-import { Node, mergeAttributes } from '@tiptap/core'
+import { Extension, Node, mergeAttributes } from '@tiptap/core'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
+import type { Selection } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
 import katex from 'katex'
@@ -287,6 +291,60 @@ export const SegmentAnchors = Node.create({
         ],
         attributes: SEGMENT_ATTR,
       },
+    ]
+  },
+})
+
+// ---------------------------------------------------------------- inline maths
+
+const INLINE_MATH = /\$([^$\n]+)\$/g
+
+function renderInlineMath(latex: string): HTMLElement {
+  const span = document.createElement('span')
+  span.className = 'ql-inline-math'
+  span.contentEditable = 'false'
+  katex.render(latex, span, { throwOnError: false, errorColor: '#dc2626', strict: false })
+  return span
+}
+
+function inlineMathDecorations(doc: ProseMirrorNode, selection: Selection): DecorationSet {
+  const decorations: Decoration[] = []
+  doc.descendants((node, pos) => {
+    if (node.type.spec.code) return false
+    if (!node.isText || node.marks.some((mark) => mark.type.spec.code)) return
+    for (const match of (node.text ?? '').matchAll(INLINE_MATH)) {
+      const from = pos + (match.index ?? 0)
+      const to = from + match[0].length
+      // Show the source while the cursor is in it, so the formula stays editable.
+      if (selection.from <= to && selection.to >= from) continue
+      decorations.push(Decoration.inline(from, to, { class: 'ql-inline-math-source' }))
+      decorations.push(
+        Decoration.widget(from, () => renderInlineMath(match[1]), {
+          side: -1,
+          key: `${from}:${match[1]}`,
+        }),
+      )
+    }
+  })
+  return DecorationSet.create(doc, decorations)
+}
+
+/**
+ * Local patch: renders `$...$` in text with KaTeX. The note prompt asks for inline maths in
+ * this form, but upstream only renders maths blocks, so formulas showed as raw LaTeX. The
+ * document keeps the source text, which search and the Markdown/Anki exports rely on.
+ */
+export const InlineMath = Extension.create({
+  name: 'inlineMath',
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('inlineMath'),
+        props: {
+          decorations: (state) => inlineMathDecorations(state.doc, state.selection),
+        },
+      }),
     ]
   },
 })

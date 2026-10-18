@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -39,6 +40,19 @@ from ..schemas import NoteBlockOut, Outline, OutlineSection, SectionBlocks
 from ..segment import format_timestamp
 
 log = logging.getLogger(__name__)
+
+_LIST_ITEM_HTML = re.compile(r"<li[^>]*>(.*?)</li>", re.S | re.I)
+_HTML_TAG = re.compile(r"</?[a-z][^>]*>", re.I)
+_BULLET = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
+
+
+def _list_items(block: NoteBlockOut) -> list[str]:
+    """Local patch: models sometimes put a whole list in ``text`` as HTML or Markdown bullets
+    instead of ``items``, which rendered as one bullet of raw ``<ul><li>`` markup."""
+    raw = block.items or _LIST_ITEM_HTML.findall(block.text) or block.text.splitlines()
+    items = [_BULLET.sub("", _HTML_TAG.sub("", item)).strip() for item in raw]
+    return [item for item in items if item]
+
 
 #: Fraction of the model's context window the outline pass may fill with transcript. The rest
 #: is instructions plus room for the response.
@@ -213,6 +227,9 @@ async def expand_section(
             # Local patch: models often omit the heading text because the section title was in
             # the prompt (without this the heading is dropped), or keep Markdown's leading #s.
             block.text = block.text.strip().lstrip("#").strip() or section.title
+        if block.type == "list":
+            block.items = _list_items(block)
+            block.text = ""
         if block.type == "latex":
             # Local patch: models wrap display maths in $...$ or $$...$$, which KaTeX rejects
             # inside a block that is already maths.

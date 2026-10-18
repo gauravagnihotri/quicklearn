@@ -23,6 +23,8 @@ so upstream defaults are unchanged.
 | `QUICKLEARN_USE_MODEL_SAMPLING` stops sending `temperature` | `providers/llm/openai_compat.py` | Low temperatures made the model think ~50% longer |
 | Note blocks require `type` and `text`; descriptive fields (`level`, `variant`, `language`) come before `text` | `pipeline/schemas.py` | vLLM emits properties in schema order: optional `text` got skipped, and with `text` second callouts got their variant name as content |
 | Empty headings fall back to the section title; leading `#`s stripped | `pipeline/generate/notes.py` | Models omit heading text (headings were dropped) or keep Markdown `##` |
+| Lists put in `text` as HTML `<li>` or `- ` bullets are split into `items` | `pipeline/generate/notes.py` | One bullet showed the raw `<ul><li>` markup |
+| Inline `$maths$` in notes renders with KaTeX (source shows while the cursor is in it) | `frontend/src/components/editor/extensions.tsx`, `index.css` | The note prompt asks for inline maths but upstream only renders maths blocks |
 | Outer `$`/`$$` stripped from maths blocks | `pipeline/generate/notes.py` | KaTeX rejects delimiters inside a block that is already maths |
 | Cards with `{{c1::…}}` become cloze; `{{c1:` is repaired | `pipeline/schemas.py` | Models omit `type` on cloze cards |
 | Card text renders cloze blanks (until flipped), inline `$maths$` and `` `code` `` | `frontend/src/components/CardText.tsx`, `routes/Review.tsx`, `routes/Source.tsx` | Upstream printed card text verbatim: `{{c1::answer}}` gave the answer away and formulas showed raw LaTeX |

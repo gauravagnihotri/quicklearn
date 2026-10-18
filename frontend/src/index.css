@@ -222,6 +222,11 @@
   margin: 2rem 0;
 }
 
+/* Inline maths: the KaTeX widget replaces its $...$ source until the cursor enters it */
+.ql-inline-math-source {
+  display: none;
+}
+
 /* Callouts */
 .ql-callout {
   border-radius: 8px;
