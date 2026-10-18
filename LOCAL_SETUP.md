@@ -37,6 +37,7 @@ so upstream defaults are unchanged.
 | Conversations can be deleted from the chat sidebar | `frontend/src/routes/Chat.tsx` | Upstream had the API endpoint and client call but no button for it |
 | Chat retrieval matches any word of the question on the keyword side (`OR`, BM25-ranked); the search box still needs every word | `db/search.py`, `rag/retrieve.py` | Typed questions rarely have every word in one passage, so chat silently ran on vector search alone |
 | Desktop sidebar collapses to an icon rail (remembered per browser) | `frontend/src/components/layout/AppShell.tsx`, `lib/store.ts` | Requested |
+| Chat answers render markdown: bold, lists, headings, tables, code, `$maths$` (KaTeX); citations stay clickable | `frontend/src/lib/markdown.ts`, `components/Markdown.tsx`, `routes/Chat.tsx`; tests in `frontend/tests` (`npm test`) | Upstream printed answers verbatim, so `**bold**`, `*` bullets and `$O(n)$` showed raw |
 
 ## Updating
 

@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { MessageSquare, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { api, ApiError } from '../lib/api'
+import { InlineMarkdown, Markdown } from '../components/Markdown'
 import type { ChatMessage, Excerpt, Segment } from '../lib/types'
 import { openChatSocket } from '../lib/ws'
 import { cn, formatRelative } from '../lib/utils'
@@ -337,7 +338,7 @@ function Conversation({ chatId }: { chatId: number }) {
                   onClick={() => send(question)}
                   className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text)]"
                 >
-                  {question}
+                  <InlineMarkdown content={question} />
                 </button>
               ))}
             </div>
@@ -432,9 +433,9 @@ function Bubble({
 }
 
 /**
- * Renders an answer, turning `[12]` markers into clickable citations.
+ * Renders an answer as markdown, turning `[12]` markers into clickable citations.
  *
- * Split on the marker pattern rather than injecting HTML: the content is model output, and
+ * Parsed into a tree rather than injecting HTML: the content is model output, and
  * `dangerouslySetInnerHTML` on it would be an injection vector into the user's own app.
  */
 function MessageBody({
@@ -443,8 +444,6 @@ function MessageBody({
   content: string
   onCitation: (segment: Segment) => void
 }) {
-  const parts = useMemo(() => content.split(/(\[\d+\])/g), [content])
-
   const open = async (segmentId: number) => {
     try {
       const result = await api.resolveCitations([segmentId])
@@ -456,29 +455,5 @@ function MessageBody({
     }
   }
 
-  return (
-    <div className="text-[15px] leading-relaxed">
-      {parts.map((part, index) => {
-        const match = /^\[(\d+)\]$/.exec(part)
-        if (match) {
-          const id = Number(match[1])
-          return (
-            <button
-              key={index}
-              onClick={() => open(id)}
-              className="mx-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded bg-[var(--accent-soft)] px-1 align-super text-[10px] font-medium text-[var(--accent)] transition-colors hover:bg-[var(--accent)] hover:text-white"
-              title="Show the source passage"
-            >
-              {id}
-            </button>
-          )
-        }
-        return (
-          <span key={index} className="whitespace-pre-wrap">
-            {part}
-          </span>
-        )
-      })}
-    </div>
-  )
+  return <Markdown content={content} onCite={open} className="text-[15px] leading-relaxed" />
 }

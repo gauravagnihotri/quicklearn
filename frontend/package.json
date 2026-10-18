@@ -11,7 +11,8 @@
     "build": "tsc -b && vite build && node scripts/copy-static.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.6",
