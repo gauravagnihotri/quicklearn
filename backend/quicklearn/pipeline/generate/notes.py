@@ -56,6 +56,8 @@ def _list_items(block: NoteBlockOut) -> list[str]:
 
 
 _MARKER = re.compile(r"\s*\[(\d+(?:\s*,\s*\d+)*)\]")
+# The model sometimes echoes the field itself, in backticks or not; that is never content.
+_FIELD_ECHO = re.compile(r"\s*`?\bsegment_ids\s*[:=]\s*\[[\d,\s]*\]`?", re.I)
 _PROTECTED = re.compile(r"(\$[^$\n]+\$|`[^`\n]+`)")
 
 
@@ -70,7 +72,7 @@ def strip_segment_markers(text: str, allowed: set[int]) -> str:
         ids = {int(part) for part in match.group(1).split(",")}
         return "" if ids <= allowed else match.group(0)
 
-    parts = _PROTECTED.split(text)
+    parts = _PROTECTED.split(_FIELD_ECHO.sub("", text))
     cleaned = "".join(
         part if index % 2 else _MARKER.sub(drop, part) for index, part in enumerate(parts)
     )

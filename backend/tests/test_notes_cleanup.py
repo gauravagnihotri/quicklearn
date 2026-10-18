@@ -20,3 +20,10 @@ def test_brackets_that_are_content_stay() -> None:
     # Maths is never touched, even when its numbers match.
     assert strip_segment_markers("index $a[11]$ here", allowed) == "index $a[11]$ here"
     assert strip_segment_markers("call `arr[10]`", allowed) == "call `arr[10]`"
+
+
+def test_echoed_field_name_is_removed_even_as_code() -> None:
+    allowed = {3}
+    text = "Skills matter for compensation. `segment_ids: [3]`"
+    assert strip_segment_markers(text, allowed) == "Skills matter for compensation."
+    assert strip_segment_markers("Done. segment_ids: [3, 4]", allowed) == "Done."
