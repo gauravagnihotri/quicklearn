@@ -1,9 +1,9 @@
-# Local inference on the workstation (192.168.86.20): vLLM on :8000 (local/serve_lfm25.sh, or serve_gemma4.sh with model "gemma4"), speaches STT/TTS on :8001.
+# Local inference on the workstation (192.168.86.20): vLLM on :8000 (local/serve_gemma4.sh; local/serve_lfm25.sh serves "lfm25", tried and found worse at notes), speaches STT/TTS on :8001.
 services:
   quicklearn:
     environment:
       QUICKLEARN_LMSTUDIO_BASE_URL: http://192.168.86.20:8000/v1
-      QUICKLEARN_ROUTING_STANDARD: '{"provider": "lmstudio", "model": "lfm25"}'
+      QUICKLEARN_ROUTING_STANDARD: '{"provider": "lmstudio", "model": "gemma4"}'
       # The "openai" provider is only used for STT/TTS, pointed at speaches
       QUICKLEARN_PROVIDERS_OPENAI_BASE_URL: http://192.168.86.20:8001/v1
       QUICKLEARN_OPENAI_API_KEY: local

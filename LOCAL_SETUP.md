@@ -5,7 +5,7 @@ inference on a workstation GPU (RTX 4500 Ada, 24 GB) at 192.168.86.20:
 
 | Port | Service | Serve script (copies in [`local/`](local/); run from `~/Documents/fix_gpu_drivers`) |
 |---|---|---|
-| 8000 | vLLM v0.29.0, Liquid LFM2.5 24B-A2B AWQ INT4 (always reasons), served as `lfm25`. Gemma 4 26B-A4B (`serve_gemma4.sh`, served as `gemma4`) is the fallback: change the model in `docker-compose.override.yml` to match | `serve_lfm25.sh` |
+| 8000 | vLLM v0.29.0, Gemma 4 26B-A4B QAT AWQ INT4, thinking on. `serve_lfm25.sh` (Liquid LFM2.5 24B-A2B, served as `lfm25`) was tried on 2026-10-18 and wrote weaker notes: paragraph walls, leaked `segment_ids:` lines, factual slips | `serve_gemma4.sh` |
 | 8001 | speaches: distil-whisper large-v3 (STT, English) + Kokoro 82M (TTS) | `serve_speaches.sh` |
 
 Embeddings stay on the default local fastembed model inside the container.
