@@ -21,6 +21,22 @@ BlockTypeLiteral = Literal[
 ]
 
 
+def _require(*names: str) -> Any:
+    """Local patch: mark fields required in the schema sent to the model, not in validation.
+
+    Under structured output (vLLM, llama.cpp) a field the schema leaves optional is one the
+    grammar lets the model skip for good. Gemma 4 happened to write them; Bonsai 2 left every
+    quiz explanation empty. Defaults stay, so providers without enforcement still validate.
+    Keep the last required field one the model writes last anyway: a required field after the
+    point where the model thinks it's done leaves only whitespace legal (see ``LessonCheckOut``).
+    """
+
+    def extra(schema: dict[str, Any]) -> None:
+        schema["required"] = [name for name in schema.get("properties", {}) if name in names]
+
+    return extra
+
+
 # --------------------------------------------------------------------------- relevance
 
 
@@ -30,6 +46,8 @@ class RelevanceScore(BaseModel):
 
 
 class RelevanceScores(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("scores"))
+
     scores: list[RelevanceScore] = Field(default_factory=list)
 
 
@@ -37,12 +55,16 @@ class RelevanceScores(BaseModel):
 
 
 class OutlineSection(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("title", "thesis", "segment_ids"))
+
     title: str = Field(min_length=1, max_length=300)
     thesis: str = ""
     segment_ids: list[int] = Field(default_factory=list)
 
 
 class Outline(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("sections"))
+
     sections: list[OutlineSection] = Field(default_factory=list)
 
 
@@ -97,6 +119,8 @@ class NoteBlockOut(BaseModel):
 
 
 class SectionBlocks(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("blocks"))
+
     blocks: list[NoteBlockOut] = Field(default_factory=list)
 
 
@@ -104,6 +128,8 @@ class SectionBlocks(BaseModel):
 
 
 class ConceptOut(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("name", "definition"))
+
     name: str = Field(min_length=1, max_length=300)
     definition: str = ""
     importance: int = Field(default=3, ge=1, le=5)
@@ -111,6 +137,8 @@ class ConceptOut(BaseModel):
 
 
 class ConceptList(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("concepts"))
+
     concepts: list[ConceptOut] = Field(default_factory=list)
 
 
@@ -133,28 +161,42 @@ class CardOut(BaseModel):
 
 
 class CardList(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("cards"))
+
     cards: list[CardOut] = Field(default_factory=list)
 
 
 class QuizItemOut(BaseModel):
+    # Local patch: ``explanation`` comes before ``answer`` so the last required field is the
+    # answer, which the model writes last anyway.
+    model_config = ConfigDict(
+        json_schema_extra=_require("type", "question", "options", "explanation", "answer")
+    )
+
     type: Literal["mcq", "cloze", "short", "free"] = "mcq"
     question: str = Field(min_length=1)
     options: list[str] = Field(default_factory=list)
-    answer: str = ""
     explanation: str = ""
+    answer: str = ""
     difficulty: int = Field(default=3, ge=1, le=5)
     concept_id: int | None = None
     segment_ids: list[int] = Field(default_factory=list)
 
 
 class QuizItemList(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("items"))
+
     items: list[QuizItemOut] = Field(default_factory=list)
 
 
 class GradeResult(BaseModel):
+    # Local patch: all required (a skipped ``score`` grades every answer 0 and wrong), with the
+    # feedback first so the verdict follows the reasoning.
+    model_config = ConfigDict(json_schema_extra=_require("feedback", "score", "is_correct"))
+
+    feedback: str = ""
     score: float = Field(default=0.0, ge=0.0, le=1.0)
     is_correct: bool = False
-    feedback: str = ""
 
 
 # --------------------------------------------------------------------------- learn (local patch)
@@ -231,27 +273,39 @@ class ReferenceSheetOut(BaseModel):
 
 
 class RerankScore(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("id", "score"))
+
     id: int
     score: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 class RerankScores(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("scores"))
+
     scores: list[RerankScore] = Field(default_factory=list)
 
 
 class FollowupQuestions(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("questions"))
+
     questions: list[str] = Field(default_factory=list)
 
 
 class PodcastLine(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("speaker", "text"))
+
     speaker: Literal["Host A", "Host B"] = "Host A"
     text: str = Field(min_length=1)
     emotion: str | None = None
 
 
 class PodcastScript(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("lines"))
+
     lines: list[PodcastLine] = Field(default_factory=list)
 
 
 class TitleSuggestion(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require("title"))
+
     title: str = Field(default="", max_length=200)
