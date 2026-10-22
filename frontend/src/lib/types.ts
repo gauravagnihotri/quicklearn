@@ -435,6 +435,8 @@ export interface CourseDetail {
 }
 
 export interface WarmupItem extends Omit<LessonCheck, 'result'> {
+  /** Kept in the query cache once answered, so leaving the tab doesn't reset it. */
+  result?: CheckResult | null
   from_lesson: { id: number; index: number; title: string }
   concept: { id: number; name: string; mastery: number }
 }

@@ -480,7 +480,8 @@ function Warmup({
   answer: (itemId: number, response: string) => Promise<LessonAnswer>
   onCite: (id: number) => void
 }) {
-  // Fetched once per visit: re-drawing after every answer would swap the question mid-attempt.
+  const queryClient = useQueryClient()
+  // Drawn once and kept: re-drawing after every answer would swap the question mid-attempt.
   const { data } = useQuery({
     queryKey: ['warmup', lessonId],
     queryFn: () => api.lessonWarmup(lessonId),
@@ -496,9 +497,17 @@ function Warmup({
             key={item.id}
             number={index + 1}
             item={item}
-            initial={null}
+            initial={item.result ?? null}
             label={`From lesson ${item.from_lesson.index + 1}: ${item.from_lesson.title}`}
-            onAnswer={(response) => answer(item.id, response)}
+            onAnswer={async (response) => {
+              const result = await answer(item.id, response)
+              queryClient.setQueryData(['warmup', lessonId], (old: { items: WarmupItem[] } | undefined) =>
+                old && {
+                  items: old.items.map((row) => (row.id === item.id ? { ...row, result: { ...result, response } } : row)),
+                },
+              )
+              return result
+            }}
             onCite={onCite}
           />
         ))}
