@@ -179,7 +179,7 @@ async def complete_structured(
     """Structured completion validated against a Pydantic model.
 
     On a parse or validation failure the model gets exactly one more attempt, with the specific
-    error fed back to it. One retry rather than a loop: a second failure means the prompt or the
+    error fed back to it. Hitting the token limit also earns one fresh attempt (local patch). One retry rather than a loop: a second failure means the prompt or the
     model is wrong, and retrying indefinitely just spends the user's money proving that.
     """
     resolved = registry.get_llm(task_class)
@@ -244,6 +244,14 @@ async def complete_structured(
         )
 
         if response.truncated:
+            if attempt == 0:
+                # Local patch: under schema enforcement a stray unescaped quote closes a JSON
+                # string early, and the only tokens the grammar still allows are whitespace, so
+                # the model pads to the limit. That is a bad draw, not a too-small budget, and a
+                # fresh sample of the same request almost always finishes.
+                log.info("%s hit the output token limit on attempt 1; retrying", purpose)
+                last_error = "hit the output token limit"
+                continue
             # Distinguish "ran out of room" from "produced nonsense" — the fixes differ, and
             # "invalid JSON" would send someone debugging the wrong thing.
             raise ProviderResponseError(

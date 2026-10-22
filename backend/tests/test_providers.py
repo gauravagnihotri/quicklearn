@@ -526,3 +526,69 @@ def test_parse_json_leaves_real_newlines_before_words() -> None:
     assert OpenAICompatLLM.parse_json_text(raw)["text"] == (
         "one\ne.g. two\ni.e. three\nUse four\tab\noted"
     )
+
+
+class _ScriptedLLM:
+    """Returns canned responses in order, for exercising the gateway's retry rules."""
+
+    supports_structured_output = True
+
+    def __init__(self, *responses: Any) -> None:
+        self.responses = list(responses)
+        self.calls = 0
+
+    async def complete(self, messages: Any, **kwargs: Any) -> Any:
+        self.calls += 1
+        return self.responses.pop(0)
+
+
+def _route_to(monkeypatch: pytest.MonkeyPatch, provider: Any) -> None:
+    from quicklearn.db.enums import TaskClass
+    from quicklearn.providers import gateway, registry
+
+    monkeypatch.setattr(
+        gateway.registry,
+        "get_llm",
+        lambda task_class=None: registry.Resolved(provider, "m", "fake", TaskClass.STANDARD),
+    )
+
+
+async def test_structured_output_retries_once_after_hitting_the_token_limit(
+    config: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pydantic import BaseModel
+
+    from quicklearn.providers import gateway
+    from quicklearn.providers.base import LLMResponse
+
+    class Answer(BaseModel):
+        text: str
+
+    padded = LLMResponse(text='{"text": "the "' + " " * 50, model="m", finish_reason="length")
+    good = LLMResponse(text='{"text": "the fixed-size problem"}', model="m")
+    provider = _ScriptedLLM(padded, good)
+    _route_to(monkeypatch, provider)
+
+    result = await gateway.complete_structured("t", [text_message("user", "x")], Answer)
+    assert result.text == "the fixed-size problem"
+    assert provider.calls == 2
+
+
+async def test_structured_output_gives_up_after_two_token_limit_hits(
+    config: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pydantic import BaseModel
+
+    from quicklearn.providers import gateway
+    from quicklearn.providers.base import LLMResponse
+
+    class Answer(BaseModel):
+        text: str
+
+    padded = LLMResponse(text='{"text": "the "', model="m", finish_reason="length")
+    provider = _ScriptedLLM(padded, padded)
+    _route_to(monkeypatch, provider)
+
+    with pytest.raises(ProviderResponseError, match="output token limit"):
+        await gateway.complete_structured("t", [text_message("user", "x")], Answer)
+    assert provider.calls == 2
