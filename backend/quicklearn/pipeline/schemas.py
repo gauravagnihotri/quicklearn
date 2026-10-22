@@ -157,6 +157,76 @@ class GradeResult(BaseModel):
     feedback: str = ""
 
 
+# --------------------------------------------------------------------------- learn (local patch)
+#
+# The Learn tab's course. Every field is required and short descriptive fields come before long
+# text, for the same vLLM structured-output reason as ``NoteBlockOut``: properties are written
+# in schema order and an optional field can be skipped for good.
+
+
+def _require_all(schema: dict[str, Any]) -> None:
+    schema["required"] = list(schema.get("properties", {}))
+
+
+class LessonPlan(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require_all)
+
+    title: str = Field(min_length=1, max_length=200)
+    #: Finishes the sentence "By the end of this lesson you can ..."
+    objective: str = ""
+    concept_ids: list[int] = Field(default_factory=list)
+    segment_ids: list[int] = Field(default_factory=list)
+
+
+class CourseOutline(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require_all)
+
+    lessons: list[LessonPlan] = Field(default_factory=list)
+
+
+def _require_all_but_explanation(schema: dict[str, Any]) -> None:
+    # With ``explanation`` required, Gemma 4 finished a short-answer check after ``answer``,
+    # found only whitespace allowed by the grammar, and wrote whitespace until max_tokens.
+    # Optional and last, it can close the object instead.
+    schema["required"] = [name for name in schema.get("properties", {}) if name != "explanation"]
+
+
+class LessonCheckOut(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require_all_but_explanation)
+
+    type: Literal["mcq", "short"] = "mcq"
+    concept_id: int | None = None
+    question: str = Field(min_length=1)
+    options: list[str] = Field(default_factory=list)
+    answer: str = ""
+    explanation: str = ""
+
+
+class LessonOut(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require_all)
+
+    why: str = ""
+    body: str = ""
+    example: str = ""
+    checks: list[LessonCheckOut] = Field(default_factory=list)
+    try_it: str = ""
+
+
+class ReferenceGroup(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require_all)
+
+    label: str = ""
+    body: str = ""
+
+
+class ReferenceSheetOut(BaseModel):
+    # One free-form ``sheet`` string came back as just the course title, with the whole sheet
+    # left in the thinking; labelled groups get written out.
+    model_config = ConfigDict(json_schema_extra=_require_all)
+
+    groups: list[ReferenceGroup] = Field(default_factory=list)
+
+
 # --------------------------------------------------------------------------- chat & podcast
 
 

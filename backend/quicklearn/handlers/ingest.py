@@ -28,6 +28,7 @@ from ..jobs.worker import JobContext, register
 from ..pipeline import stages
 from ..pipeline.generate import cards as cards_gen
 from ..pipeline.generate import concepts as concepts_gen
+from ..pipeline.generate import course as course_gen
 from ..pipeline.generate import notes as notes_gen
 from ..pipeline.generate import quiz as quiz_gen
 from ..providers import registry
@@ -389,6 +390,23 @@ async def handle_generate_quiz(ctx: JobContext) -> None:
         count=int(count) if isinstance(count, int) else 20,
         job_id=ctx.job_id,
     )
+
+
+@register(JobType.GENERATE_COURSE)
+async def handle_generate_course(ctx: JobContext) -> None:
+    """Local patch: the Learn tab's course. Only ever queued from the tab, never by ingest."""
+    source_id = _require_source(ctx)
+    if not _has_concepts(source_id):
+        ctx.progress(2, "Extracting concepts first")
+        await concepts_gen.generate_concepts(source_id, job_id=ctx.job_id)
+
+    ctx.progress(10, "Planning the lessons")
+    await course_gen.generate_course(
+        source_id,
+        job_id=ctx.job_id,
+        on_progress=lambda done, total, stage: ctx.sub_progress(15, 85, done, total, stage),
+    )
+    emit("source.updated", source_id=source_id, status="ready")
 
 
 @register(JobType.INDEX)

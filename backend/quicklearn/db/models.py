@@ -148,6 +148,10 @@ class Source(Base):
     quiz_items: Mapped[list[QuizItem]] = relationship(
         back_populates="source", cascade="all, delete-orphan"
     )
+    #: Local patch: the Learn tab's course (at most one per source).
+    course: Mapped[Course | None] = relationship(
+        back_populates="source", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class Transcript(Base):
@@ -345,10 +349,67 @@ class QuizItem(Base):
     segment_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
     #: Items minted on demand by adaptive practice, rather than part of a saved bank.
     ephemeral: Mapped[bool] = mapped_column(Boolean, default=False)
+    #: Local patch: set on a lesson's retrieval checks. Those are also ``ephemeral`` so they stay
+    #: out of the test bank and survive a quiz regenerate.
+    lesson_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lessons.id", ondelete="CASCADE"), index=True
+    )
     created_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=utcnow)
 
     source: Mapped[Source | None] = relationship(back_populates="quiz_items")
     concept: Mapped[Concept | None] = relationship()
+
+
+class Course(Base):
+    """Local patch: a source turned into a short guided course for the Learn tab.
+
+    Shaped after the "teach" skill (github.com/mattpocock/skills): a mission saying why the
+    user is learning this, a few tightly scoped lessons that each end in retrieval practice, and
+    a compact reference sheet for coming back later.
+    """
+
+    __tablename__ = "courses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("sources.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    #: Why the user is learning this, in their words. Optional; grounds every lesson.
+    mission: Mapped[str] = mapped_column(Text, default="")
+    #: Markdown cheat sheet written after the lessons; the glossary comes from concepts.
+    reference_md: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
+
+    source: Mapped[Source] = relationship(back_populates="course")
+    lessons: Mapped[list[Lesson]] = relationship(
+        back_populates="course", cascade="all, delete-orphan", order_by="Lesson.index"
+    )
+
+
+class Lesson(Base):
+    """Local patch: one lesson of a :class:`Course`. Read-only markdown with ``[segment]`` cites."""
+
+    __tablename__ = "lessons"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), index=True)
+    index: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(512))
+    #: "By the end you can ..." — the lesson's single tangible win.
+    objective: Mapped[str] = mapped_column(Text, default="")
+    why: Mapped[str] = mapped_column(Text, default="")
+    body_md: Mapped[str] = mapped_column(Text, default="")
+    example_md: Mapped[str] = mapped_column(Text, default="")
+    try_it: Mapped[str] = mapped_column(Text, default="")
+    concept_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
+    segment_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
+    #: Set once every check has been answered; ``score`` is the mean of the first answers.
+    completed_at: Mapped[dt.datetime | None] = mapped_column(UTCDateTime)
+    score: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[dt.datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+    course: Mapped[Course] = relationship(back_populates="lessons")
 
 
 class QuizSession(Base):

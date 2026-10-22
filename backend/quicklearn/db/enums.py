@@ -61,6 +61,8 @@ class JobType(StrEnum):
     GENERATE_CARDS = "generate_cards"
     GENERATE_QUIZ = "generate_quiz"
     GENERATE_PODCAST = "generate_podcast"
+    #: Local patch: the Learn tab's guided course (lessons, checks and a reference sheet).
+    GENERATE_COURSE = "generate_course"
     INDEX = "index"
 
 

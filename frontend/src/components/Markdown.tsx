@@ -86,6 +86,10 @@ function BlockView({ block, onCite }: { block: Block; onCite?: OnCite }) {
       )
     case 'list': {
       const List = block.ordered ? 'ol' : 'ul'
+      // Nested items share this list element, so top-level items get explicit numbers;
+      // otherwise "1, 2, (three sub-items), 3" renders as "1, 2, 6".
+      let top = 0
+      const numbers = block.items.map((item) => (item.depth ? undefined : (block.start ?? 1) + top++))
       return (
         <List
           start={block.ordered ? block.start : undefined}
@@ -94,6 +98,7 @@ function BlockView({ block, onCite }: { block: Block; onCite?: OnCite }) {
           {block.items.map((item, index) => (
             <li
               key={index}
+              value={block.ordered ? numbers[index] : undefined}
               style={item.depth ? { marginLeft: `${item.depth * 1.25}rem` } : undefined}
               className={cn('pl-0.5', item.depth > 0 && 'list-[circle]')}
             >

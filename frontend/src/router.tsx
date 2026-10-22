@@ -43,6 +43,8 @@ interface SourceSearch {
   tab?: string
   seg?: number
   print?: boolean
+  /** Local patch: print view of the Learn tab's reference sheet. */
+  sheet?: boolean
 }
 const sourceRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -52,6 +54,7 @@ const sourceRoute = createRoute({
     tab: typeof search.tab === 'string' ? search.tab : undefined,
     seg: search.seg ? Number(search.seg) : undefined,
     print: search.print === true || search.print === 'true' ? true : undefined,
+    sheet: search.sheet === true || search.sheet === 'true' ? true : undefined,
   }),
 })
 

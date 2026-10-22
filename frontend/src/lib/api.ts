@@ -1,7 +1,7 @@
 import type {
-  AnswerResult, Card, Chat, ChatMessage, Concept, Dashboard, DueCounts, Excerpt, Folder,
-  Job, Note, Podcast, QuizDone, QuizQuestion, QuizResults, ReviewResult, SearchHit,
-  Segment, SettingsPayload, Source, SourceDetail, UnfinishedRecording, Usage,
+  AnswerResult, Card, Chat, ChatMessage, Concept, CourseDetail, Dashboard, DueCounts, Excerpt,
+  Folder, Job, LessonAnswer, Note, Podcast, QuizDone, QuizQuestion, QuizResults, ReviewResult, SearchHit,
+  Segment, SettingsPayload, Source, SourceDetail, UnfinishedRecording, Usage, WarmupItem,
 } from './types'
 
 const BASE = '/api/v1'
@@ -227,6 +227,19 @@ export const api = {
     post<AnswerResult>(`/quiz/session/${sessionId}/answer`, { item_id, response }),
   quizResults: (sessionId: number) => get<QuizResults>(`/quiz/session/${sessionId}/results`),
   resetMastery: (source_id: number) => post<{ reset: number }>(`/quiz/reset-mastery${qs({ source_id })}`),
+
+  // ---------------------------------------------------------------- learn (local patch)
+  getCourse: (sourceId: number) => get<CourseDetail>(`/sources/${sourceId}/course`),
+  buildCourse: (sourceId: number, mission?: string) =>
+    post<{ job_id: number }>(`/sources/${sourceId}/course`, { mission: mission ?? null }),
+  saveMission: (sourceId: number, mission: string) =>
+    request<{ mission: string }>(`/sources/${sourceId}/course/mission`, {
+      method: 'PUT',
+      body: JSON.stringify({ mission }),
+    }),
+  answerLessonCheck: (lessonId: number, item_id: number, response: string) =>
+    post<LessonAnswer>(`/lessons/${lessonId}/answer`, { item_id, response }),
+  lessonWarmup: (lessonId: number) => get<{ items: WarmupItem[] }>(`/lessons/${lessonId}/warmup`),
 
   // ---------------------------------------------------------------- chat
   listChats: () => get<{ chats: Chat[] }>('/chat'),

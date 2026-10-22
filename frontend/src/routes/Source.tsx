@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import {
-  AlertTriangle, Brain, Download, FileText, Headphones, Layers, ListChecks, MessageSquare,
+  AlertTriangle, Brain, Download, FileText, GraduationCap, Headphones, Layers, ListChecks, MessageSquare,
   Pencil, Printer, RefreshCw, Sparkles, Trash2,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -12,6 +12,7 @@ import type { NoteStyle } from '../lib/types'
 import { cn, formatDuration, kindLabel } from '../lib/utils'
 import { CardText } from '../components/CardText'
 import { NoteEditor } from '../components/editor/NoteEditor'
+import { LearnTab, ReferenceSheetPrint, type LearnView } from '../components/learn/LearnTab'
 import { AudioPlayer } from '../components/player/AudioPlayer'
 import { VideoPlayer } from '../components/player/VideoPlayer'
 import { TranscriptPanel } from '../components/player/TranscriptPanel'
@@ -57,6 +58,8 @@ export function SourcePage() {
       /* storage blocked — the toggle still works for this visit */
     }
   }
+  // Local patch: the Learn tab's open lesson lives here because inactive tabs unmount.
+  const [learnView, setLearnView] = useState<LearnView>(null)
   const [renaming, setRenaming] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
 
@@ -158,6 +161,16 @@ export function SourcePage() {
     setTab('transcript')
     const target = segments.find((segment) => segment.id === ids[0])
     if (target?.start_ms != null) usePlayer.getState().seekTo(target.start_ms)
+  }
+
+  if (search.sheet) {
+    return (
+      <ReferenceSheetPrint
+        sourceId={id}
+        title={source.title}
+        onBack={() => navigate({ to: '/library/$sourceId', params: { sourceId }, search: { tab: 'learn' } })}
+      />
+    )
   }
 
   if (printMode && note) {
@@ -333,6 +346,10 @@ export function SourcePage() {
           <TabsTrigger value="notes">
             <FileText className="h-3.5 w-3.5" /> Notes
           </TabsTrigger>
+          <TabsTrigger value="learn">
+            <GraduationCap className="h-3.5 w-3.5" /> Learn
+            {counts.lessons > 0 && <Badge className="ml-1">{counts.lessons}</Badge>}
+          </TabsTrigger>
           <TabsTrigger value="transcript">
             <Layers className="h-3.5 w-3.5" /> {isMedia ? 'Transcript' : 'Source text'}
             <Badge className="ml-1">{counts.segments}</Badge>
@@ -449,6 +466,20 @@ export function SourcePage() {
               />
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="learn">
+          <LearnTab
+            sourceId={id}
+            view={learnView}
+            onView={(view) => {
+              setLearnView(view)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            onJump={jumpToSource}
+            building={writing(['generate_course'])}
+            ready={source.status === 'ready' && counts.segments > 0}
+          />
         </TabsContent>
 
         <TabsContent value="transcript">

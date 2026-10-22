@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 
 from ..db.enums import JobType, SourceKind, SourceOrigin, SourceStatus
-from ..db.models import Card, Concept, QuizItem, Segment, Source, Tag, Transcript
+from ..db.models import Card, Concept, Course, Lesson, QuizItem, Segment, Source, Tag, Transcript
 from ..db.search import delete_source as search_delete_source
 from ..db.session import raw_sqlite, session_scope
 from ..errors import NotFoundError, ValidationError
@@ -340,6 +340,15 @@ def get_source(source_id: int) -> dict[str, Any]:
                     select(func.count())
                     .select_from(QuizItem)
                     .where(QuizItem.source_id == source_id, QuizItem.ephemeral.is_(False))
+                ).scalar_one()
+            ),
+            # Local patch: the Learn tab's badge.
+            "lessons": int(
+                session.execute(
+                    select(func.count())
+                    .select_from(Lesson)
+                    .join(Course, Course.id == Lesson.course_id)
+                    .where(Course.source_id == source_id)
                 ).scalar_one()
             ),
         }

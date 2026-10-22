@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from . import cards, chat, library, notes, podcasts, quiz, sources, system
+from . import cards, chat, learn, library, notes, podcasts, quiz, sources, system
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -17,6 +17,8 @@ api_router.include_router(sources.router)
 api_router.include_router(notes.router)
 api_router.include_router(cards.router)
 api_router.include_router(quiz.router)
+# Local patch: the Learn tab.
+api_router.include_router(learn.router)
 api_router.include_router(chat.router)
 api_router.include_router(podcasts.router)
 api_router.include_router(library.router)

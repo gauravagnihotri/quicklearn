@@ -85,7 +85,7 @@ export interface SourceDetail {
   /** Local patch: the ADHD-friendly second note, written after ingest. */
   simplified_note: Note | null
   transcript: { language: string | null; provider: string | null; model: string | null } | null
-  counts: { segments: number; concepts: number; cards: number; quiz_items: number }
+  counts: { segments: number; concepts: number; cards: number; quiz_items: number; lessons: number }
   jobs: Job[]
 }
 
@@ -383,4 +383,65 @@ export interface JobEvent {
   done?: number
   total?: number
   podcast_id?: number
+}
+
+// Local patch: the Learn tab's guided course.
+export interface CheckResult {
+  response?: string
+  is_correct: boolean
+  score: number
+  feedback: string
+  correct_answer: string
+  explanation: string
+}
+
+export interface LessonCheck {
+  id: number
+  source_id: number | null
+  concept_id: number | null
+  type: string
+  question: string
+  options: string[]
+  difficulty: number
+  segment_ids: number[]
+  result: CheckResult | null
+}
+
+export type LessonStatus = 'todo' | 'done' | 'review' | 'missing'
+
+export interface Lesson {
+  id: number
+  index: number
+  title: string
+  objective: string
+  why: string
+  body_md: string
+  example_md: string
+  try_it: string
+  concept_ids: number[]
+  segment_ids: number[]
+  completed_at: string | null
+  score: number | null
+  mastery: number | null
+  status: LessonStatus
+  checks: LessonCheck[]
+}
+
+export interface CourseDetail {
+  course: { id: number; mission: string; reference_md: string; updated_at: string | null } | null
+  lessons: Lesson[]
+  glossary: { id: number; name: string; definition: string }[]
+  next_lesson_id: number | null
+}
+
+export interface WarmupItem extends Omit<LessonCheck, 'result'> {
+  from_lesson: { id: number; index: number; title: string }
+  concept: { id: number; name: string; mastery: number }
+}
+
+export interface LessonAnswer extends CheckResult {
+  item_id: number
+  segment_ids: number[]
+  mastery: number
+  lesson_completed: boolean
 }
