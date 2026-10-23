@@ -8,7 +8,7 @@
 NAME=${NAME:-llm-bonsai}
 IMAGE=${IMAGE:-vllm/vllm-openai:v0.29.0}
 LLAMA=${LLAMA:-$HOME/llama.cpp-prism/bin}
-MODELS=${MODELS:-/media/garyfirestorm/SSD_Drv/models/Ternary-Bonsai-2-27B-gguf}
+MODELS=${MODELS:-$HOME/models/Ternary-Bonsai-2-27B-gguf}  # root disk: the NTFS SSD only mounts at desktop login, after Docker starts
 PORT=${PORT:-8000}
 CTX=${CTX:-262144}   # shared by all slots (--kv-unified), so one request can use all of it
 SLOTS=${SLOTS:-4}    # QuickLearn expands several note sections at once
