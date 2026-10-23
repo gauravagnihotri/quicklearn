@@ -592,3 +592,12 @@ async def test_structured_output_gives_up_after_two_token_limit_hits(
     with pytest.raises(ProviderResponseError, match="output token limit"):
         await gateway.complete_structured("t", [text_message("user", "x")], Answer)
     assert provider.calls == 2
+
+
+def test_lmstudio_context_window_comes_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    from quicklearn.providers.llm.lmstudio import LMStudioLLM
+
+    provider = LMStudioLLM(api_key="", base_url="http://localhost:1234/v1")
+    assert provider.context_window == 32_768
+    monkeypatch.setenv("QUICKLEARN_LMSTUDIO_CONTEXT_WINDOW", "131072")
+    assert provider.context_window == 131_072

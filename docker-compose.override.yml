@@ -1,9 +1,12 @@
-# Local inference on the workstation (192.168.86.20): vLLM on :8000 (local/serve_gemma4.sh; local/serve_lfm25.sh serves "lfm25", tried and found worse at notes), speaches STT/TTS on :8001.
+# Local inference on the workstation (192.168.86.20): Bonsai 2 27B on llama.cpp on :8000 (local/serve_bonsai_docker.sh, since 2026-10-22; it also answers to "gemma4", and local/serve_gemma4.sh is the vLLM fallback), speaches STT/TTS on :8001.
 services:
   quicklearn:
     environment:
       QUICKLEARN_LMSTUDIO_BASE_URL: http://192.168.86.20:8000/v1
-      QUICKLEARN_ROUTING_STANDARD: '{"provider": "lmstudio", "model": "gemma4"}'
+      QUICKLEARN_ROUTING_STANDARD: '{"provider": "lmstudio", "model": "bonsai"}'
+      # Half the server's 262k shared context: a long lecture is outlined in one window and the
+      # rest stays free for the sections expanded in parallel (local patch in lmstudio.py)
+      QUICKLEARN_LMSTUDIO_CONTEXT_WINDOW: "131072"
       # The "openai" provider is only used for STT/TTS, pointed at speaches
       QUICKLEARN_PROVIDERS_OPENAI_BASE_URL: http://192.168.86.20:8001/v1
       QUICKLEARN_OPENAI_API_KEY: local
